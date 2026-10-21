@@ -2,10 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: http: https:;"
-    />
+    <!-- The CSP is injected by the `flame-csp` Vite plugin (see electron.vite.config.ts):
+         production gets a strict policy, dev keeps the permissive one Vite's HMR needs. -->
+    <meta http-equiv="Content-Security-Policy" content="__FLAME_CSP__" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FlameAGI</title>
   </head>

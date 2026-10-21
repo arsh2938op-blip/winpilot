@@ -1,0 +1,22 @@
+# Normalize text files to LF in the repository and in the working tree.
+# Without this, line endings depend on each developer's core.autocrlf, which
+# produces noisy whole-file diffs when people work on Windows and Linux.
+* text=auto eol=lf
+
+# Binary assets — never line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.wav binary
+*.exe binary
+*.dll binary
+
+# Lockfiles are generated; keep them LF but never diff them noisily.
+package-lock.json -diff

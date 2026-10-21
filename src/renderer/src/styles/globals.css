@@ -1,0 +1,453 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Color tokens for WinPilot.
+ *
+ * Light mode leans on a soft, slightly cool off-white (closer to Windows 11's
+ * actual light theme than pure white) and dark mode targets the ~#1c1e21
+ * charcoal Windows 11 itself uses, rather than true black. The accent blue
+ * is Windows' own system accent family (#0078D4 light / a brighter tint for
+ * dark), so buttons and focus states feel native rather than "web app blue".
+ */
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 15% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 15% 12%;
+
+    --sidebar: 210 20% 96%;
+    --sidebar-foreground: 222 15% 20%;
+
+    --primary: 206 100% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 222 15% 16%;
+
+    --muted: 210 16% 95%;
+    --muted-foreground: 215 12% 42%;
+
+    --accent: 206 100% 95%;
+    --accent-foreground: 206 100% 30%;
+
+    --destructive: 4 78% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 60% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 214 15% 89%;
+    --input: 214 15% 89%;
+    --ring: 206 100% 42%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 220 13% 11%;
+    --foreground: 210 20% 96%;
+
+    --card: 220 13% 14%;
+    --card-foreground: 210 20% 96%;
+
+    --sidebar: 220 15% 9%;
+    --sidebar-foreground: 210 15% 88%;
+
+    --primary: 206 100% 62%;
+    --primary-foreground: 220 30% 10%;
+
+    --secondary: 220 10% 20%;
+    --secondary-foreground: 210 15% 90%;
+
+    --muted: 220 10% 18%;
+    --muted-foreground: 215 10% 65%;
+
+    --accent: 206 60% 20%;
+    --accent-foreground: 206 100% 80%;
+
+    --destructive: 4 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 50% 45%;
+    --success-foreground: 220 30% 10%;
+
+    --border: 220 10% 22%;
+    --input: 220 10% 22%;
+    --ring: 206 100% 62%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply text-foreground font-sans antialiased;
+    /* The native window is genuinely transparent, so the page must never
+       paint an opaque backdrop of its own — that would just re-create the
+       solid rectangle we are trying to remove. Every surface is drawn by
+       the app shell (translucent) or by the orb (fully transparent). */
+    background: transparent;
+    /* No native drag-to-select text cursor on UI chrome, matching desktop
+       app conventions rather than a webpage's default text-selection feel. */
+    user-select: none;
+  }
+
+  /* Re-enable selection inside actual content areas (inputs, readable text). */
+  input,
+  textarea,
+  [data-selectable] {
+    user-select: text;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/25 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@layer utilities {
+  .fluent-compact {
+    @apply rounded-lg shadow-fluent;
+  }
+
+  /* The frameless window's draggable title bar region. */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* AI thinking indicator — appears immediately on send, independent of
+     the 5s-delayed text label. */
+  @keyframes flame-spin-ring {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes flame-pulse-icon {
+    0%, 100% {
+      opacity: 0.6;
+      transform: scale(0.92);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+  }
+  .flame-thinking-ring {
+    animation: flame-spin-ring 1.4s linear infinite;
+  }
+  .flame-thinking-pulse {
+    animation: flame-pulse-icon 1.8s ease-in-out infinite;
+  }
+
+  @keyframes flame-orbit-spin {
+    to { transform: rotate(360deg); }
+  }
+  .flame-orbit {
+    animation: flame-orbit-spin 6s linear infinite;
+    transform-origin: center;
+  }
+  .flame-orbit-fast {
+    animation: flame-orbit-spin 2.4s linear infinite;
+    transform-origin: center;
+  }
+}
+
+/* ---- PET surface ----
+   The floating companion. The mascot bobs and blinks, its electron orbits
+   revolve, and a speech bubble appears when it talks. */
+
+html[data-surface='orb'] body {
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Every piece of visible text in the PET window is pure white, including
+   placeholders, disabled controls, status and error copy. Scoped to the PET
+   surface so the full app keeps its own text hierarchy. Disabled/active
+   states are signalled with background and ring changes rather than by
+   fading text, which would reintroduce grey. */
+html[data-surface='orb'] .pet-root,
+html[data-surface='orb'] .pet-root * {
+  color: #ffffff;
+}
+
+.pet-root {
+  /* The mascot is monochrome by design. The accent choice only tints the
+     halo, the one place colour is still allowed to show. */
+  --pet-halo: rgb(122 170 235 / 0.3);
+  background: transparent;
+}
+
+.pet-root[data-accent='black'] {
+  --pet-halo: rgb(200 210 220 / 0.24);
+}
+
+/* Medium by default — big enough to read the mascot, small enough to sit in
+   a corner of the desktop without getting in the way. */
+.pet-stage {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.pet-stage--sm {
+  width: 34px;
+  height: 34px;
+}
+
+.pet-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pet-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pet-bob 3.4s ease-in-out infinite;
+}
+
+.pet-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pet-blink 5.2s ease-in-out infinite;
+}
+
+.pet-ring {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+}
+.pet-ring--0 {
+  animation: pet-spin 9s linear infinite;
+}
+.pet-ring--1 {
+  animation: pet-spin 14s linear infinite reverse;
+}
+
+.pet-pod {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.5));
+}
+
+.pet-bubble {
+  animation: pet-pop 0.28s ease-out both;
+}
+.pet-dot {
+  animation: pet-dot 1.1s ease-in-out infinite;
+}
+
+.pet-halo {
+  position: absolute;
+  inset: -12px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--pet-halo) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* State is never signalled by colour alone — the panel always shows the
+   matching text label and the button carries an aria-label. */
+.pet-state-listening .pet-svg {
+  animation: pet-pulse 1.4s ease-in-out infinite;
+}
+.pet-state-processing .pet-ring--0,
+.pet-state-processing .pet-ring--1 {
+  animation-duration: 2.6s;
+}
+.pet-state-speaking .pet-ring--0 {
+  animation-duration: 3.5s;
+}
+.pet-state-error .pet-svg {
+  opacity: 0.45;
+}
+
+@keyframes pet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pet-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+@keyframes pet-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes pet-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pet-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-1.5px);
+  }
+}
+@keyframes pet-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* ---- Application emblem ----
+   The Flame AGI tile: glossy square, wordmark bar, two ringed spheres. */
+.emblem-svg {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.emb-orbit {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: pet-spin 16s linear infinite;
+}
+.emb-orbit--slow {
+  animation-duration: 24s;
+  animation-direction: reverse;
+}
+
+/* Both identities must still read correctly with animation switched off. */
+@media (prefers-reduced-motion: reduce) {
+  .pet-float,
+  .pet-eyes,
+  .pet-ring,
+  .pet-dot,
+  .pet-svg,
+  .emb-orbit {
+    animation: none !important;
+  }
+}
+
+/* ---- Accent themes ----
+   Each theme only overrides the accent-bearing tokens, so every component
+   inherits it automatically without any component-level theme logic.
+   Applied via data-accent on <html>, independent of light/dark mode. */
+
+:root[data-accent='magma'] {
+  --primary: 18 92% 48%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 20 100% 94%;
+  --accent-foreground: 18 92% 32%;
+  --ring: 18 92% 48%;
+}
+.dark[data-accent='magma'] {
+  --primary: 22 96% 58%;
+  --primary-foreground: 20 40% 10%;
+  --accent: 18 60% 20%;
+  --accent-foreground: 24 100% 78%;
+  --ring: 22 96% 58%;
+  --background: 20 18% 9%;
+  --card: 20 16% 12%;
+  --sidebar: 20 20% 7%;
+}
+
+:root[data-accent='purple'] {
+  --primary: 265 84% 55%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 265 100% 96%;
+  --accent-foreground: 265 84% 38%;
+  --ring: 265 84% 55%;
+}
+.dark[data-accent='purple'] {
+  --primary: 265 90% 70%;
+  --primary-foreground: 265 40% 12%;
+  --accent: 265 50% 22%;
+  --accent-foreground: 265 100% 85%;
+  --ring: 265 90% 70%;
+  --background: 265 20% 10%;
+  --card: 265 18% 13%;
+  --sidebar: 265 24% 8%;
+}
+
+:root[data-accent='emerald'] {
+  --primary: 160 84% 32%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 160 70% 94%;
+  --accent-foreground: 160 84% 24%;
+  --ring: 160 84% 32%;
+}
+.dark[data-accent='emerald'] {
+  --primary: 158 74% 48%;
+  --primary-foreground: 160 40% 10%;
+  --accent: 160 45% 18%;
+  --accent-foreground: 158 80% 76%;
+  --ring: 158 74% 48%;
+  --background: 170 16% 9%;
+  --card: 170 14% 12%;
+  --sidebar: 170 18% 7%;
+}
+
+:root[data-accent='slate'] {
+  --primary: 215 25% 32%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 215 30% 94%;
+  --accent-foreground: 215 25% 26%;
+  --ring: 215 25% 32%;
+}
+.dark[data-accent='slate'] {
+  --primary: 213 30% 62%;
+  --primary-foreground: 215 30% 12%;
+  --accent: 215 22% 22%;
+  --accent-foreground: 213 40% 82%;
+  --ring: 213 30% 62%;
+}

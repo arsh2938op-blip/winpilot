@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>WinPilot Companion</title>
+    <meta name="description" content="Control your WinPilot PC from your phone." />
+    <meta name="theme-color" content="#0d6ec2" />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WinPilot" />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!--
+      This is a placeholder companion PWA — same idea as the desktop app's
+      pages, adapted to a mobile layout (top app bar + bottom tabs instead
+      of a sidebar). Nothing here talks to a real PC yet.
+
+      TODO (see /README.md "Roadmap: mobile companion" for the full plan):
+        - Add a pairing/connect flow to a WinPilot desktop instance on the
+          local network (the desktop app would need to expose a small
+          local API for this — not built yet).
+        - Once connected, replace the static placeholder content below
+          with real data/actions, mirroring the desktop app's pages.
+    -->
+    <div id="app">
+      <header class="app-bar">
+        <div class="brand">
+          <img src="icons/icon-192.png" alt="" />
+          <h1>WinPilot</h1>
+        </div>
+        <button id="install-btn">Install app</button>
+      </header>
+
+      <main>
+        <!-- Dashboard -->
+        <section class="page active" data-page="dashboard">
+          <div class="page-header">
+            <h2>Dashboard</h2>
+            <p>A quick look at what your PC is doing right now.</p>
+          </div>
+          <div class="stat-grid">
+            <div class="stat-card"><div class="label">CPU</div><div class="value">—</div></div>
+            <div class="stat-card"><div class="label">Memory</div><div class="value">—</div></div>
+            <div class="stat-card"><div class="label">Disk</div><div class="value">—</div></div>
+            <div class="stat-card"><div class="label">Battery</div><div class="value">—</div></div>
+          </div>
+          <div class="card placeholder" style="margin-top:12px;">
+            <div class="icon">⌁</div>
+            <h3>Not connected to a PC yet<span class="badge">Planned</span></h3>
+            <p>Pair with a WinPilot desktop instance on your network to see live stats here.</p>
+          </div>
+        </section>
+
+        <!-- Winget -->
+        <section class="page" data-page="winget">
+          <div class="page-header">
+            <h2>Winget Manager</h2>
+            <p>Install, update, and remove apps on your PC.</p>
+          </div>
+          <div class="card placeholder">
+            <div class="icon">⬇</div>
+            <h3>Not connected yet<span class="badge">Planned</span></h3>
+            <p>Searching, installing, and updating apps remotely will appear here once paired.</p>
+          </div>
+        </section>
+
+        <!-- AI Assistant -->
+        <section class="page" data-page="assistant">
+          <div class="page-header">
+            <h2>AI Assistant</h2>
+            <p>Tell WinPilot what you want, from anywhere in the house.</p>
+          </div>
+          <div class="card placeholder">
+            <div class="icon">✦</div>
+            <h3>Not connected yet<span class="badge">Planned</span></h3>
+            <p>Prompts sent here would relay to your PC's assistant once this is built.</p>
+          </div>
+        </section>
+
+        <!-- Windows Controls -->
+        <section class="page" data-page="controls">
+          <div class="page-header">
+            <h2>Windows Controls</h2>
+            <p>Toggle common settings on your PC remotely.</p>
+          </div>
+          <div class="card" style="padding:4px 16px;">
+            <div class="row"><span class="label">📶 Bluetooth</span><span class="switch"></span></div>
+            <div class="row"><span class="label">📡 Wi-Fi</span><span class="switch"></span></div>
+            <div class="row"><span class="label">🌙 Dark mode</span><span class="switch"></span></div>
+            <div class="row"><span class="label">🔔 Notifications</span><span class="switch"></span></div>
+          </div>
+        </section>
+
+        <!-- More -->
+        <section class="page" data-page="more">
+          <div class="page-header">
+            <h2>More</h2>
+            <p>Gaming Mode, Combos, Plugins, and Settings.</p>
+          </div>
+          <div class="card" style="padding:4px 16px;">
+            <div class="row"><span class="label">🎮 Gaming Mode</span><span class="badge">Planned</span></div>
+            <div class="row"><span class="label">🔗 Combos</span><span class="badge">Planned</span></div>
+            <div class="row"><span class="label">🧩 Plugins</span><span class="badge">Planned</span></div>
+            <div class="row"><span class="label">⚙️ Settings</span><span class="badge">Planned</span></div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tab-bar">
+        <button data-page="dashboard" class="active"><span class="tab-icon">⌂</span>Dashboard</button>
+        <button data-page="winget"><span class="tab-icon">⬇</span>Winget</button>
+        <button data-page="assistant"><span class="tab-icon">✦</span>Assistant</button>
+        <button data-page="controls"><span class="tab-icon">◐</span>Controls</button>
+        <button data-page="more"><span class="tab-icon">⋯</span>More</button>
+      </nav>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

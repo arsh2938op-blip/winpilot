@@ -1,0 +1,275 @@
+/*
+ * Same token values as src/renderer/src/styles/globals.css on the desktop
+ * app, so the two feel like one product. Kept as plain CSS here (no
+ * Tailwind build step) since this is a static, dependency-free PWA.
+ */
+:root {
+  --background: 210 20% 98%;
+  --foreground: 222 15% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 15% 12%;
+  --bar: 210 20% 96%;
+  --primary: 206 100% 42%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 210 16% 95%;
+  --muted-foreground: 215 12% 42%;
+  --accent: 206 100% 95%;
+  --accent-foreground: 206 100% 30%;
+  --border: 214 15% 89%;
+  --radius: 0.9rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 220 13% 11%;
+    --foreground: 210 20% 96%;
+    --card: 220 13% 14%;
+    --card-foreground: 210 20% 96%;
+    --bar: 220 15% 9%;
+    --primary: 206 100% 62%;
+    --primary-foreground: 220 30% 10%;
+    --muted: 220 10% 18%;
+    --muted-foreground: 215 10% 65%;
+    --accent: 206 60% 20%;
+    --accent-foreground: 206 100% 80%;
+    --border: 220 10% 22%;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family:
+    'Segoe UI Variable Text',
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* Top app bar */
+.app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: max(env(safe-area-inset-top), 14px) 16px 12px;
+  background: hsl(var(--bar));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.app-bar h1 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand img {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+#install-btn {
+  display: none;
+  border: none;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+
+/* Main scrollable content */
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+}
+
+.page {
+  display: none;
+}
+.page.active {
+  display: block;
+}
+
+.page-header {
+  margin-bottom: 14px;
+}
+.page-header h2 {
+  margin: 0 0 2px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.page-header p {
+  margin: 0;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+
+.card {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.stat-card .label {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.stat-card .value {
+  font-family: 'Cascadia Code', ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.placeholder {
+  text-align: center;
+  padding: 40px 12px;
+  border: 1.5px dashed hsl(var(--border));
+  border-radius: var(--radius);
+}
+.placeholder .icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+.placeholder h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.placeholder p {
+  margin: 0;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  max-width: 32ch;
+  margin-inline: auto;
+}
+.badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 2px;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 14px;
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row .label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.switch {
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: hsl(var(--muted));
+  position: relative;
+  opacity: 0.6;
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: hsl(var(--card));
+}
+
+/* Bottom tab bar */
+nav.tab-bar {
+  display: flex;
+  background: hsl(var(--bar));
+  border-top: 1px solid hsl(var(--border));
+  padding: 6px max(env(safe-area-inset-bottom), 6px) calc(6px + env(safe-area-inset-bottom));
+}
+
+.tab-bar button {
+  flex: 1;
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  font-size: 10.5px;
+  color: hsl(var(--muted-foreground));
+  border-radius: 10px;
+}
+
+.tab-bar button.active {
+  color: hsl(var(--primary));
+  background: hsl(var(--accent));
+}
+
+.tab-bar .tab-icon {
+  font-size: 18px;
+  line-height: 1;
+}

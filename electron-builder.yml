@@ -1,0 +1,17 @@
+appId: com.flameagi.app
+productName: FlameAGI
+directories:
+  buildResources: resources
+  output: release
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

@@ -6,6 +6,11 @@ directories:
 files:
   - out/**/*
   - package.json
+  # The window, tray and orb icons are loaded at runtime from
+  # `out/main/../../resources`, so they must be inside the packaged app.
+  # icon-reference.png is a design source file and is deliberately excluded.
+  - resources/icon.png
+  - resources/icon-pet.png
 win:
   target:
     - target: nsis

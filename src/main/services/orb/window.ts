@@ -144,8 +144,8 @@ export async function createOrbWindow(): Promise<BrowserWindow | null> {
       focusable: false,
       title: 'FlameAGI Companion',
       // PET mode shows the mascot; the tile is the application icon and belongs to
-// the main window, tray and installer.
-icon: join(__dirname, '../../../resources/icon-pet.png'),
+      // the main window, tray and installer.
+      icon: join(__dirname, '../../resources/icon-pet.png'),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: true,

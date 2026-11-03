@@ -1,175 +1,152 @@
-# FlameAGI
+# 🔥 FlameAGI — Autonomous Windows AI Assistant & MCP Agent Operating System
 
-A persistent AI assistant for Windows. Flame runs as a desktop app (Electron)
-with a floating companion orb, and can read and change things on your machine
-— install apps, run commands, work through your files, and edit your code.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![Electron](https://img.shields.io/badge/Electron-31.x-47848F.svg)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-18.x-61DAFB.svg)](https://react.dev/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.x-38B2AC.svg)](https://tailwindcss.com/)
+[![MCP](https://img.shields.io/badge/MCP-Standard-orange.svg)](https://modelcontextprotocol.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The app is named **FlameAGI**; the codebase still uses `WinPilot` in some
-internal identifiers and paths.
+**FlameAGI** is an autonomous desktop AI assistant and agentic operating system designed natively for Windows 11. Powered by Google Gemini and local Ollama models, FlameAGI bridges conversational intelligence directly to Windows native APIs, the **Model Context Protocol (MCP)**, desktop computer use, autonomous coding pipelines, and cross-platform companion networks like WhatsApp and Minecraft.
 
-## Stack
+---
 
-- Electron 31 + `electron-vite` (three build targets: main / preload / renderer)
-- React 18 + TypeScript (strict)
-- Tailwind CSS + shadcn/ui-style components (Radix-based)
-- React Router (`HashRouter`, required for Electron's `file://` loading)
-- Zustand for local UI state
-- `coder_engine.py` — the guarded code-editing engine that wraps the OpenCode CLI
+## ✨ Core Features & Architecture
 
-## Getting started
+### 1. 🔌 Native Model Context Protocol (MCP) Host
+FlameAGI implements a built-in stdio-based MCP Client and Host (`src/main/mcp/`) that automatically boots and orchestrates specialized servers on app launch:
+- **`computerUseServer`**: Direct Windows C# P/Invoke interop via PowerShell (`user32.dll`, `gdi32.dll`). Provides screen capture, cursor positioning, mouse click/drag, keyboard text input/keystrokes, and active window focusing. Includes an instant corner killswitch ($(X \le 4, Y \le 4)$).
+- **`browserServer`**: Playwright-powered headless/headed browser for web navigation, dynamic DOM search, and HTML extraction.
+- **`fileSystemServer`**: Deep filesystem inspection, recursive directory tree mapping, and automated `%TEMP%` cleanup.
+- **`osControlServer`**: Sandboxed Windows PowerShell execution, hardware telemetry (CPU, RAM, Disk, GPU), and running process monitoring.
+- **`whatsappServer`**: Real-time WhatsApp companion integration via Baileys socket connection, archiving inbound photos/videos/audio, and generating pairing QR codes.
 
-```bash
-npm install
-npm run dev          # launches the app with hot reload
-```
+### 2. 👁️ Autonomous Computer Use Protocol
+When performing GUI actions, Flame adheres to an explicit 4-step execution loop:
+1. **Observation**: Capture current screen state via `computer.capture_screen`.
+2. **Coordinate Planning**: Locate target UI elements in pixel space $(X, Y)$.
+3. **Action Execution**: Dispatch atomic native inputs (`pointer_action`, `keyboard_input`, `window_control`).
+4. **Verification**: Recapture screen to confirm the operation succeeded before taking the next step.
 
-Other scripts:
+### 3. 🎙️ Zero-Cost Local Voice Pipeline & BlackFlamePet
+FlameAGI features a responsive cyber-amber flame companion pet (`BlackFlamePet`) synced with local browser audio APIs:
+- **Speech-to-Text (STT)**: Browser-native Web Speech API with live interim streaming into the input bar and automatic submission on speech end.
+- **Text-to-Speech (TTS)**: Cleaned markdown vocalization via `window.speechSynthesis` with speech rate and pitch control.
+- **Audio-Visual Sync**: The pet seamlessly animates between `idle` (`· ◡ ·`), `listening` (`◉ ◡ ◉` with audio-reactive pulses), and `speaking` (`● ◡ ●` with orbital planetary rings).
 
-```bash
-npm run build        # production build (renderer + main + preload)
-npm run build:win    # build + package a Windows installer (electron-builder)
-npm run typecheck    # TypeScript project-wide check
-npm run lint         # ESLint
-```
+### 4. 🎮 Isolated Minecraft Agent Mode
+- **Dual Mode Separation**: Normal desktop operations strictly follow standard `Chat | Task` modes.
+- **Game Agent Activation**: Agent Mode is completely isolated and only activates when the user explicitly asks (*"come to minecraft"*, *"launch game agent"*) or triggers the `Alt` global hotkey.
+- **Voice-to-Voice HUD**: Displays a minimal, cybernetic HUD overlaying the game with full duplex voice control.
+- **Dynamic Leader Recognition**: Authorizes the configured user profile nickname alongside `Emperorop7528` as Minecraft team leaders.
 
-## Architecture
+### 5. 💬 Dual-Memory & WhatsApp Shared Brain
+- **Live GUI QR Pairing**: Connect your WhatsApp in seconds with dynamic QR code generation rendered in the Plugins tab or requested directly in chat.
+- **Cross-Platform Knowledge**: Shared facts and conversation history synchronize between Windows desktop and mobile WhatsApp chats.
+- **Media Archival**: Inbound media messages (photos, voice notes, documents) are indexed locally with one-click desktop preview and opening.
 
-Electron runs two processes with very different powers. The **main** process
-can touch the filesystem, run shell commands, and call Windows. The
-**renderer** (the React UI) cannot, by design. They talk only through
-**IPC**, wired up via the **preload** script.
+### 6. 🖼️ Inline Chat Stream Image Gallery & Lightbox
+- Messages containing screenshots (`computer.capture_screen`), WhatsApp media items, or generated images (`/image`) render inside amber-accented inline preview cards.
+- Clicking any image opens a full-featured Lightbox modal with zoom controls, download, and native Windows Explorer file revealing (`app.openPath`).
 
-This isn't just an Electron requirement — it directly enforces the project's
-safety philosophy. Because the renderer physically cannot run system
-commands, "always confirm before doing anything destructive" is something
-the architecture guarantees, not a UI convention someone could accidentally
-skip.
+### 7. 🛡️ Guarded Coder Engine & Self-Healing
+- **Syntax Check**: All code modifications are validated against AST parsing and compilation before staging.
+- **One-Command Rollback**: Automatic `.bak` run snapshots allow reverting any code edit instantly.
+- **Auto-Healing**: Detected runtime or chat errors prompt Flame's Guardian Engine to diagnose the stack trace, generate verified patches, and offer a one-click **Self-Heal** button.
 
-```
-Renderer (React)  →  preload (window.api.*)  →  IPC  →  main/ipc/*.ts  →  main/services/*
-     UI only              the "locked door"                              real system logic
-```
+---
 
-### Layout
+## 🛠️ Project Structure
 
 ```
 winpilot/
-├── shared/                # Types + IPC channel names used by BOTH processes
-├── resources/              # icon.ico / icon.png used by electron-builder + dev window
-├── mobile/                 # Companion PWA shell (static HTML/CSS/JS)
+├── shared/                         # Universal TypeScript types & IPC channel definitions
+│   ├── types.ts                    # UserProfile, ChatMessage, LightboxImage, MCP types
+│   └── ipc-channels.ts             # IPC channel contracts
+├── resources/                      # Native assets (icon.ico, icon.png, icon.svg)
 ├── src/
-│   ├── main/               # Node process — the only code allowed to touch Windows
-│   │   ├── index.ts         # App entry: window, tray, orb, lifecycle
-│   │   ├── ipc/              # Receives IPC calls, delegates to services/
-│   │   ├── services/         # Real system logic (winget, system stats, AI, orb, ...)
-│   │   ├── plugins/          # Plugin capabilities (see below)
-│   │   ├── flameCore/        # Capability registry + prompt/effort/personality
-│   │   └── utils/            # broadcast.ts (agent activity), runCommand.ts
-│   ├── preload/             # The bridge — exposes a small, explicit API to the renderer
-│   │   ├── index.ts          # the window.api surface
-│   │   └── global.d.ts       # `Window.api` type declaration
-│   └── renderer/            # The React UI — no direct system access
+│   ├── main/                       # Node.js Electron Main Process
+│   │   ├── index.ts                # Application lifecycle, MCP initialization, window setup
+│   │   ├── flameCore/              # Capabilities registry, prompt builder, computer use protocol
+│   │   ├── mcp/                    # Model Context Protocol Host & Server implementations
+│   │   │   ├── mcpHost.ts          # Central stdio MCP server manager
+│   │   │   └── servers/            # computerUse, browser, fileSystem, osControl, whatsapp
+│   │   ├── services/               # System services (AI, WhatsApp, Minecraft, Profile, Audio)
+│   │   └── ipc/                    # Type-safe IPC handlers (app, profile, whatsapp, ai)
+│   ├── preload/                    # Secure Preload Bridge (`window.api.*`)
+│   └── renderer/                   # React 18 UI (Vite + Tailwind + Radix UI)
 │       └── src/
 │           ├── components/
-│           │   ├── ui/        # shadcn/ui-style primitives (Button, Card, Input, ...)
-│           │   ├── layout/     # TitleBar, Sidebar, CommandPalette, AppShell
-│           │   ├── orb/        # Floating companion window UI
-│           │   └── shared/     # PageHeader, PlaceholderCard, StatCard, CodeBlock
-│           ├── pages/         # One folder per feature
-│           ├── routes/        # Single source of truth for navigation
-│           ├── store/         # Zustand stores (theme, nav, orb)
-│           ├── hooks/         # useTheme, useVoice
-│           └── lib/           # chat history, message rendering, voice providers
+│           │   ├── pet/            # BlackFlamePet animated vector companion
+│           │   ├── chat/           # ChatMessage component with inline image cards
+│           │   ├── shared/         # ModeSwitcher (Chat | Task), ImageLightbox, FlameIcon
+│           │   ├── mcp/            # MCP server status pills & tool execution cards
+│           │   └── minecraft/      # AgentModeHud voice overlay
+│           ├── pages/              # AIAssistant, Plugins, Settings, ChessArena, REA
+│           ├── hooks/              # useSpeechRecognition, useTextToSpeech, useTheme
+│           └── lib/                # Chat history, formatters, utilities
+├── .env.example                    # Environment variable template
+├── keys.example.json               # API key template
+└── electron-builder.yml            # Windows installer packaging configuration
 ```
 
-## The capability registry
+---
 
-Flame Core knows exactly one thing about plugins: *look up an id, call
-`run()`*. Everything else — Windows, winget, Zapier, memory, files, search,
-RSI, coding — registers into one flat registry in
-`src/main/flameCore/capabilities.ts`.
+## 🚀 Getting Started
 
+### Prerequisites
+- **Node.js**: `v20.x` or later recommended
+- **Windows 10 / 11** (for native Windows P/Invoke and PowerShell tools)
+- **Ollama** (optional, for offline local models like `qwen2.5-coder:1.5b` or `gemma:2b`)
+
+### 1. Installation
+Clone the repository and install dependencies:
+```bash
+git clone https://github.com/your-username/flameagi.git
+cd flameagi/winpilot
+npm install
 ```
-flameCore/capabilities.ts   # registerCapability() / getCapability()
-flameCore/registerPlugins.ts # the one place every plugin registers
-plugins/<name>/capabilities.ts
+
+### 2. Configure Environment
+Copy the example environment configuration:
+```bash
+cp .env.example .env
+```
+Open `.env` and add your Google Gemini API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+FLAME_GEMINI_MODEL=gemini-2.5-flash
+OLLAMA_URL=http://127.0.0.1:11434
 ```
 
-Adding a plugin means adding one line to `registerPlugins.ts`. The registry
-currently holds 24 capabilities:
+### 3. Start Development Server
+Run FlameAGI in development mode with hot-reloading:
+```bash
+npm run dev
+```
 
-| Plugin | Capabilities |
-|---|---|
-| `windows` | `windows.launchApp`, `winget.install`, `winget.update` |
-| `files` | `files.listDirectory`, `files.readText`, `files.inspectZip`, `files.extractZip`, `files.searchInFiles`, `files.readPdfText`, `vision.inspectImage`, `vision.inspectFolder`, `vision.inspectZip` |
-| `coder` | `coder.edit`, `coder.approve`, `coder.reject`, `coder.rollback`, `coder.diff`, `coder.status`, `coder.doctor` |
-| `aiNetwork` | `ai_network.gemini`, `ai_network.opencode` |
-| `memory` | `memory.remember`, `memory.rememberPlan` |
-| `rsi` | `rsi.improve` |
-| `search` | `search.currentInfo` |
-| `devTools` | `devtools.runCommand` |
-| `zapier` | `zapier.run` |
+### 4. Build Production Application
+```bash
+# Typecheck TypeScript for both web renderer and Node main process
+npm run typecheck
 
-### Intent routing
+# Build bundle
+npm run build
 
-`src/main/services/ai/index.ts` is the single entry point for a chat turn.
-It classifies the prompt (locally via Ollama/Gemma, or Gemini when the user
-picks the Gemini model), then dispatches to a capability through
-`runCapability()`. Destructive actions are never executed straight from the
-model — they return a `pendingAction` that the renderer renders as a
-Confirm/Cancel prompt, so the approval gate is structural rather than a UI
-convention.
+# Package standalone Windows installer (.exe)
+npm run build:win
+```
 
-Chat also accepts literal Coder Engine commands that bypass classification
-entirely (they are commands, not something a 2B model should route):
-`Edit: <task>`, `approve`, `reject`, `rollback`, `diff`, `doctor`, `status`,
-`modified`, `list`.
+---
 
-## The Coder Engine
+## 🔒 Security & Safety Model
 
-`coder_engine.py` (in the workspace root, one level above this folder) is a
-single-file, standard-library-only Python program that wraps the OpenCode CLI.
-Every code change made through chat goes through it, so it inherits:
+- **Process Isolation**: The React renderer operates without direct Node.js or OS access. All system interactions must cross the audited `preload` boundary.
+- **Destructive Action Confirmation**: High-impact operations (file deletion, app uninstallation, self-healing code writes) emit a `pendingAction` requiring explicit human user approval before execution.
+- **Fail-Safe Killswitch**: Computer use mouse interop monitors cursor coordinates on every step; moving the mouse to the top-left corner ($(X \le 4, Y \le 4)$) immediately aborts pointer operations.
 
-- `.bak` snapshots in `.flame/runs/<run_id>/` for one-command rollback
-- a syntax guard before any change is kept — Python files must pass
-  `ast.parse` **and** `py_compile`, JSON must parse
-- staged review mode (`--review`) that never touches the workspace
-- VS Code visual diffs via `code --diff`
-- all-or-nothing application: one bad file rolls the whole run back
+---
 
-The bridge lives in `src/main/services/ai/coderEngine.ts`. Tasks are piped to
-the engine's stdin rather than its argv, so no shell quoting is ever
-involved.
+## 📄 License
 
-## Safety model
-
-- The renderer cannot reach Windows except through explicit preload APIs.
-- Destructive capabilities (`uninstall`, file extraction, RSI) return a
-  pending action; the user must confirm in the UI first.
-- Imported projects carry explicit `read` / `write` / `execute` permissions,
-  and RSI refuses to run without all three.
-- RSI creates a Git checkpoint before each attempt and rolls back to it if
-  the tests fail.
-
-## What still needs work
-
-- **Git history.** The RSI feature requires the target project to be a Git
-  repository, and creates a checkpoint before every attempt.
-- `Combos` and `Gaming Mode` are UI shells — no execution layer yet.
-- The `Plugins` page lists capabilities but has no enable/disable toggle.
-- `mobile/` is a static companion PWA shell; it does not talk to the desktop
-  app yet. It needs a pairing flow and a local API in the main process.
-- PDF support extracts text only. Page-image rendering is not implemented,
-  and image-only (scanned) PDFs yield no text.
-
-## Design notes
-
-The visual language pulls from Windows 11 / Fluent Design: Segoe UI Variable
-as the system font, a Windows accent-blue primary color, soft low-elevation
-shadows, and a frameless custom title bar so the window itself is part of
-the design rather than generic OS chrome. Cascadia Code is used for
-numeric/stat/command-palette text as a nod to the VS Code/PowerToys lineage
-this app draws from. All of this lives in `tailwind.config.ts` and
-`src/renderer/src/styles/globals.css` as CSS variables, so retheming later is
-a matter of changing values in one place.
+This project is licensed under the [MIT License](LICENSE).

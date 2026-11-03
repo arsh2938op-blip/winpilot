@@ -17,7 +17,15 @@ export const IpcChannels = {
     copyText: 'app:copyText',
     pickImage: 'app:pickImage',
     pickAnyFile: 'app:pickAnyFile',
-    pickAnyFolder: 'app:pickAnyFolder'
+    pickAnyFolder: 'app:pickAnyFolder',
+    openPath: 'app:openPath',
+    showItemInFolder: 'app:showItemInFolder'
+  },
+
+  profile: {
+    get: 'profile:get',
+    set: 'profile:set',
+    onUpdated: 'profile:updated'
   },
 
   contacts: {
@@ -63,7 +71,6 @@ export const IpcChannels = {
     activity: 'orb:activity'
   },
 
-  // TODO: Winget Manager (first real feature — see src/main/services/winget)
   winget: {
     listInstalled: 'winget:listInstalled',
     listUpgradable: 'winget:listUpgradable',
@@ -71,19 +78,23 @@ export const IpcChannels = {
     install: 'winget:install',
     update: 'winget:update',
     uninstall: 'winget:uninstall',
+    getIcon: 'winget:getIcon',
+    getMetadata: 'winget:getMetadata',
     // Progress/log events are pushed from main -> renderer, not requested.
     onProgress: 'winget:onProgress'
   },
 
-  // TODO: System dashboard (CPU/GPU/RAM/disk/network/battery)
+  // System metrics (CPU/GPU/RAM/disk/network/battery)
   system: {
     getSnapshot: 'system:getSnapshot'
   },
 
-  // TODO: Windows Controls (Bluetooth, Wi-Fi, power plan, startup apps, etc.)
-  windowsControls: {
-    getState: 'windowsControls:getState',
-    toggle: 'windowsControls:toggle'
+  combos: {
+    list: 'combos:list',
+    save: 'combos:save',
+    delete: 'combos:delete',
+    execute: 'combos:execute',
+    onProgress: 'combos:onProgress'
   },
 
   memory: {
@@ -95,7 +106,9 @@ export const IpcChannels = {
   agent: {
     activity: 'agent:activity',
     debateTurn: 'agent:debateTurn',
-    debateEnded: 'agent:debateEnded'
+    debateEnded: 'agent:debateEnded',
+    skillUnlocked: 'agent:skillUnlocked',
+    statusChange: 'agent:statusChange'
   },
 
   // TODO: AI Assistant (local model via Ollama)
@@ -103,6 +116,7 @@ export const IpcChannels = {
     sendPrompt: 'ai:sendPrompt',
     startDebate: 'ai:startDebate',
     stopDebate: 'ai:stopDebate',
+    interrupt: 'ai:interrupt',
     checkStatus: 'ai:checkStatus',
     setGoogleApiKey: 'ai:setGoogleApiKey',
     hasGoogleApiKey: 'ai:hasGoogleApiKey',
@@ -114,7 +128,10 @@ export const IpcChannels = {
     inspectZipImages: 'ai:inspectZipImages',
     setZapierMcpUrl: 'ai:setZapierMcpUrl',
     hasZapierMcpUrl: 'ai:hasZapierMcpUrl',
-    listZapierTools: 'ai:listZapierTools'
+    listZapierTools: 'ai:listZapierTools',
+    getOllamaModels: 'get-ollama-models',
+    saveModelConfig: 'save-model-config',
+    getModelConfig: 'get-model-config'
   },
 
   aiNetwork: {
@@ -137,7 +154,11 @@ export const IpcChannels = {
     getDebateRounds: 'aiNetwork:getDebateRounds',
     setDebateRounds: 'aiNetwork:setDebateRounds',
     getDifficulty: 'aiNetwork:getDifficulty',
-    setDifficulty: 'aiNetwork:setDifficulty'
+    setDifficulty: 'aiNetwork:setDifficulty',
+    getConfig: 'aiNetwork:getConfig',
+    updateConfig: 'aiNetwork:updateConfig',
+    getSnapshot: 'aiNetwork:getSnapshot',
+    testEndpoint: 'aiNetwork:testEndpoint'
   },
 
   files: {
@@ -164,13 +185,85 @@ export const IpcChannels = {
     stop: 'minecraft:stop',
     getStatus: 'minecraft:getStatus',
     onLog: 'minecraft:onLog',
-    onStatus: 'minecraft:onStatus'
+    onStatus: 'minecraft:onStatus',
+    getBotState: 'minecraft:getBotState'
   },
 
   project: {
     get: 'project:get',
     pickFolder: 'project:pickFolder',
     openInVsCode: 'project:openInVsCode'
-  }
+  },
 
+  chess: {
+    // Arena & Director high-level channels (v2.1)
+    getState: 'chess:getState',
+    newGame: 'chess:newGame',
+    undo: 'chess:undo',
+    makeMove: 'chess:makeMove',
+    playHumanVsAiMove: 'chess:playHumanVsAiMove',
+    directAiTurn: 'chess:directAiTurn',
+    runAiVsAiMatch: 'chess:runAiVsAiMatch',
+    getPlayers: 'chess:getPlayers',
+    setPlayers: 'chess:setPlayers',
+    saveApiProfile: 'chess:saveApiProfile',
+    listApiProfiles: 'chess:listApiProfiles',
+
+    // Low-level & engine server channels
+    startServer: 'chess:startServer',
+    stopServer: 'chess:stopServer',
+    getStatus: 'chess:getStatus',
+    getPosition: 'chess:getPosition',
+    getReview: 'chess:getReview',
+    runMatch: 'chess:runMatch',
+    listApis: 'chess:listApis',
+    saveApi: 'chess:saveApi'
+  },
+
+  rea: {
+    inspectFile: 'rea:inspectFile',
+    inspectAsar: 'rea:inspectAsar',
+    auditWorkspace: 'rea:auditWorkspace',
+    generateFolder: 'rea:generateFolder',
+    exportZip: 'rea:exportZip',
+    codeOnEvidence: 'rea:codeOnEvidence'
+  },
+
+  dueMessages: {
+    list: 'dueMessages:list',
+    add: 'dueMessages:add',
+    complete: 'dueMessages:complete',
+    dismiss: 'dueMessages:dismiss',
+    delete: 'dueMessages:delete',
+    onUpdate: 'dueMessages:onUpdate'
+  },
+
+  plugins: {
+    list: 'plugins:list',
+    toggle: 'plugins:toggle',
+    getState: 'plugins:getState',
+    onStateChange: 'plugins:onStateChange'
+  },
+
+  image: {
+    generate: 'image:generate'
+  },
+
+  mcp: {
+    listServers: 'mcp:listServers',
+    getStatus: 'mcp:getStatus',
+    reloadServer: 'mcp:reloadServer',
+    toggleServer: 'mcp:toggleServer',
+    callTool: 'mcp:callTool',
+    onStatusChange: 'mcp:onStatusChange'
+  },
+
+  guardian: {
+    criticalError: 'guardian:criticalError',
+    healProposal: 'guardian:healProposal',
+    reportError: 'guardian:reportError',
+    applyHeal: 'guardian:applyHeal',
+    onCriticalError: 'guardian:onCriticalError',
+    onHealProposal: 'guardian:onHealProposal'
+  }
 } as const

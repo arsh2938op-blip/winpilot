@@ -1,30 +1,27 @@
-import { FlamePet } from '@renderer/components/shared/FlamePet'
-import { cn } from '@renderer/lib/utils'
+// src/renderer/src/components/shared/FlameIcon.tsx
+import React from 'react'
+import { FlameIcon as NewFlameIcon, type FlameIconProps as NewFlameIconProps } from '@renderer/components/icons/FlameIcon'
 
-interface FlameIconProps {
-  size?: number
+export interface FlameIconProps extends Omit<NewFlameIconProps, 'activePulse'> {
   active?: boolean
-  className?: string
+  activePulse?: boolean
 }
 
-/**
- * The FlameAGI mascot, sized to whatever the call site needs.
- *
- * Used for the sidebar corner, the title bar, the Chat greeting and message
- * avatars — the same artwork as the taskbar/tray/installer icon, so there is
- * only one identity in the product. It has to stay legible from 16px (avatar)
- * to 44px (greeting), hence the compact variant that drops the outer orbit.
- */
-export function FlameIcon({ size = 24, active = false, className }: FlameIconProps): React.JSX.Element {
+export function FlameIcon({
+  size = 24,
+  active = false,
+  activePulse = false,
+  showHexShield = true,
+  className
+}: FlameIconProps): React.JSX.Element {
   return (
-    <span
-      className={cn('relative inline-flex shrink-0 items-center justify-center overflow-hidden', className)}
-      style={{ width: size, height: size }}
-    >
-      <FlamePet
-        compact={size < 24}
-        className={cn('h-full w-full', active && 'flame-thinking-pulse')}
-      />
-    </span>
+    <NewFlameIcon
+      size={size}
+      activePulse={activePulse || active}
+      showHexShield={showHexShield}
+      className={className}
+    />
   )
 }
+
+export default FlameIcon

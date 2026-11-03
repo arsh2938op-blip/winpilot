@@ -1,241 +1,324 @@
-import { useEffect, useState } from 'react'
-import { CircleDot, Loader2, Sparkles, Terminal, Cpu } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Network, RefreshCw, Save, Loader2, ShieldCheck, Terminal, Sparkles, Flame,
+  CheckCircle2, XCircle, Route, KeyRound
+} from 'lucide-react'
 import { PageHeader } from '@renderer/components/shared/PageHeader'
-import { Card, CardContent } from '@renderer/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@renderer/components/ui/card'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { cn } from '@renderer/lib/utils'
-import type { AiNetworkStatus } from '@shared/types'
+import type {
+  AiEndpointKind,
+  AiNetworkEndpoint,
+  AiNetworkEndpointState,
+  AiNetworkSnapshot
+} from '@shared/types'
 
-function StatusDot({ on }: { on: boolean }): React.JSX.Element {
-  return <CircleDot className={cn('h-3.5 w-3.5', on ? 'text-success' : 'text-destructive')} />
+const KIND_META: Record<AiEndpointKind, { icon: typeof Flame; label: string; blurb: string }> = {
+  ollama: {
+    icon: Flame,
+    label: 'Flame · local',
+    blurb: 'Reflex triage and local chat through Ollama.'
+  },
+  opencode: {
+    icon: Terminal,
+    label: 'OpenCode · coding',
+    blurb: 'Agentic edits over HTTP or the local CLI.'
+  },
+  gemini: {
+    icon: Sparkles,
+    label: 'Gemini · cloud',
+    blurb: 'Heavy reasoning, planning and code questions.'
+  }
+}
+
+function statusFor(states: AiNetworkEndpointState[], id: string): AiNetworkEndpointState | undefined {
+  return states.find((state) => state.id === id)
 }
 
 export default function AiNetwork(): React.JSX.Element {
-  const [status, setStatus] = useState<AiNetworkStatus | null>(null)
-  const [testing, setTesting] = useState<'gemini' | null>(null)
-  const [testResult, setTestResult] = useState<Record<string, string>>({})
-  const [debateRounds, setDebateRounds] = useState(16)
-  const [savedDebateRounds, setSavedDebateRounds] = useState(16)
-  const [visionEnabled, setVisionEnabled] = useState(false)
-  const [visionModel, setVisionModel] = useState('')
-  const [savedVisionModel, setSavedVisionModel] = useState('')
-  const [savingVisionModel, setSavingVisionModel] = useState(false)
-  const [openCodeEnabled, setOpenCodeEnabledState] = useState(false)
-  const [openCodeCommand, setOpenCodeCommandInput] = useState('')
-  const [savedOpenCodeCommand, setSavedOpenCodeCommand] = useState('')
-  const [savingOpenCodeCommand, setSavingOpenCodeCommand] = useState(false)
+  const [snapshot, setSnapshot] = useState<AiNetworkSnapshot | null>(null)
+  const [draft, setDraft] = useState<AiNetworkEndpoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [testing, setTesting] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
 
-  const refresh = (): void => {
-    window.api?.aiNetwork?.status().then(setStatus).catch(() => {})
-  }
-
-  useEffect(refresh, [])
-  useEffect(() => {
-    window.api?.aiNetwork?.getDebateRounds().then((rounds) => {
-      setDebateRounds(rounds)
-      setSavedDebateRounds(rounds)
-    }).catch(() => {})
-    window.api?.aiNetwork?.getVisionModel().then((model) => {
-      setVisionModel(model ?? '')
-      setSavedVisionModel(model ?? '')
-    }).catch(() => {})
-    window.api?.aiNetwork?.isVisionEnabled().then(setVisionEnabled).catch(() => {})
-    window.api?.aiNetwork?.getOpenCodeCommand().then((command) => {
-      setOpenCodeCommandInput(command)
-      setSavedOpenCodeCommand(command)
-    }).catch(() => {})
-    window.api?.aiNetwork?.isOpenCodeEnabled().then(setOpenCodeEnabledState).catch(() => {})
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    setNotice(null)
+    try {
+      const next = await window.api.aiNetwork.getSnapshot()
+      setSnapshot(next)
+      setDraft(next.config.endpoints)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  const saveRounds = async (): Promise<void> => {
-    if (!window.api?.aiNetwork) return
-    const rounds = Math.max(2, Math.min(40, Math.floor(debateRounds)))
-    await window.api.aiNetwork.setDebateRounds(rounds)
-    setDebateRounds(rounds)
-    setSavedDebateRounds(rounds)
-  }
+  useEffect(() => {
+    void load()
+  }, [load])
 
-  const saveVisionModel = async (): Promise<void> => {
-    if (!window.api?.aiNetwork) return
-    const next = visionModel.trim()
-    if (!next) return
-    setSavingVisionModel(true)
+  const patch = useCallback((id: string, changes: Partial<AiNetworkEndpoint>): void => {
+    setDraft((prev) => prev.map((endpoint) => (endpoint.id === id ? { ...endpoint, ...changes } : endpoint)))
+  }, [])
+
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    setNotice(null)
     try {
-      await window.api.aiNetwork.setVisionModel(next)
-      setSavedVisionModel(next)
-      setVisionModel(next)
+      await window.api.aiNetwork.updateConfig({ endpoints: draft })
+      await load()
+      setNotice('Saved. The router reads this file before the next Task run.')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : String(err))
     } finally {
-      setSavingVisionModel(false)
+      setSaving(false)
     }
   }
 
-  const toggleVision = async (enabled: boolean): Promise<void> => {
-    if (!window.api?.aiNetwork) return
-    await window.api.aiNetwork.setVisionEnabled(enabled)
-    setVisionEnabled(enabled)
-  }
-
-  const saveOpenCodeCommand = async (): Promise<void> => {
-    if (!window.api?.aiNetwork || !openCodeCommand.trim()) return
-    setSavingOpenCodeCommand(true)
+  const test = async (endpoint: AiNetworkEndpoint): Promise<void> => {
+    setTesting(endpoint.id)
     try {
-      const command = openCodeCommand.trim()
-      await window.api.aiNetwork.setOpenCodeCommand(command)
-      setOpenCodeCommandInput(command)
-      setSavedOpenCodeCommand(command)
-    } finally {
-      setSavingOpenCodeCommand(false)
-    }
-  }
-
-  const toggleOpenCode = async (enabled: boolean): Promise<void> => {
-    if (!window.api?.aiNetwork) return
-    await window.api.aiNetwork.setOpenCodeEnabled(enabled)
-    setOpenCodeEnabledState(enabled)
-  }
-
-  const test = async (which: 'gemini'): Promise<void> => {
-    if (!window.api?.aiNetwork) return
-    setTesting(which)
-    try {
-      const result = await window.api.aiNetwork.testGemini()
-      setTestResult((prev) => ({ ...prev, [which]: result.message }))
+      const result = await window.api.aiNetwork.testEndpoint(endpoint.id)
+      setTestResults((prev) => ({ ...prev, [endpoint.id]: result }))
+    } catch (err) {
+      setTestResults((prev) => ({
+        ...prev,
+        [endpoint.id]: { success: false, message: err instanceof Error ? err.message : String(err) }
+      }))
     } finally {
       setTesting(null)
     }
   }
 
+  const dirty = useMemo(() => {
+    if (!snapshot) return false
+    return JSON.stringify(snapshot.config.endpoints) !== JSON.stringify(draft)
+  }, [snapshot, draft])
+
+  const states = snapshot?.endpoints ?? []
+  const guards = snapshot?.config.guards
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="AI Network"
-        description='Specialized AIs Flame can call on. Try "ask gemini…" in Chat.'
+        description="The collaborators Flame can call in Task mode. Everything on this page is read from and written to .flame/coder_config.json."
+        actions={
+          <>
+            <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </Button>
+            <Button size="sm" onClick={() => void save()} disabled={!dirty || saving}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
+            </Button>
+          </>
+        }
       />
 
-      <div className="space-y-4">
-        <Card>
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="flex items-center gap-3">
-              <Cpu className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Ollama (gemma2:2b)</p>
-                <p className="text-xs text-muted-foreground">Local — Flame&apos;s main brain for chat and intent parsing.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <StatusDot on={!!status?.ollama.modelReady} />
-              {status?.ollama.modelReady ? 'Ready' : status?.ollama.running ? 'Model not pulled' : 'Not running'}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Gemini</p>
-                  <p className="text-xs text-muted-foreground">
-                    {status?.gemini.configured
-                      ? `${status.gemini.keyCount} key(s) configured — same keys used for voice.`
-                      : 'No key configured yet — add one in Chat settings.'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 text-xs">
-                  <StatusDot on={!!status?.gemini.configured} />
-                  {status?.gemini.configured ? 'Configured' : 'Not configured'}
-                </div>
-                <Button size="sm" variant="outline" disabled={!status?.gemini.configured || testing === 'gemini'} onClick={() => test('gemini')}>
-                  {testing === 'gemini' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Test'}
-                </Button>
-              </div>
-            </div>
-            {testResult.gemini && <p className="mt-3 text-xs text-muted-foreground">{testResult.gemini}</p>}
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-              <label htmlFor="debate-rounds" className="flex-1 text-xs text-muted-foreground">Maximum debate turns (2–40)</label>
-              <Input
-                id="debate-rounds"
-                type="number"
-                min={2}
-                max={40}
-                value={debateRounds}
-                onChange={(event) => setDebateRounds(Number(event.target.value))}
-                className="w-24"
-              />
-              <Button size="sm" variant="outline" onClick={saveRounds} disabled={debateRounds === savedDebateRounds}>Save</Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Terminal className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Vision</p>
-                  <p className="text-xs text-muted-foreground">Gemini image inspection for local files.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{visionEnabled ? 'Enabled' : 'Disabled'}</span>
-                <Switch checked={visionEnabled} onCheckedChange={toggleVision} />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-              <Input
-                value={visionModel}
-                onChange={(event) => setVisionModel(event.target.value)}
-                placeholder={savedVisionModel || 'gemini-2.0-flash-preview-image-generation'}
-                className="flex-1"
-              />
-              <Button size="sm" variant="outline" onClick={saveVisionModel} disabled={savingVisionModel || !visionModel.trim()}>
-                {savingVisionModel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Terminal className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">OpenCode</p>
-                  <p className="text-xs text-muted-foreground">Used for confirmed RSI tasks on the active project.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{openCodeEnabled ? 'Enabled' : 'Disabled'}</span>
-                <Switch checked={openCodeEnabled} onCheckedChange={toggleOpenCode} />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-              <Input
-                value={openCodeCommand}
-                onChange={(event) => setOpenCodeCommandInput(event.target.value)}
-                placeholder="opencode run '{task}'"
-                className="flex-1 font-mono text-xs"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={saveOpenCodeCommand}
-                disabled={savingOpenCodeCommand || !openCodeCommand.trim() || openCodeCommand === savedOpenCodeCommand}
-              >
-                {savingOpenCodeCommand ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
-              </Button>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">Template placeholders: {'{task}'} and {'{cwd}'}.</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-muted-foreground">
+          <Network className="h-3.5 w-3.5" />
+          {draft.length} endpoint{draft.length === 1 ? '' : 's'}
+        </span>
+        <span className="flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-muted-foreground">
+          <Route className="h-3.5 w-3.5" />
+          Task route: {snapshot?.config.routing.task.join(' → ') || '—'}
+        </span>
+        <span className="flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Guards: {guards?.ast ? 'AST on' : 'AST off'} · max {guards?.maxFilesPerRun ?? '—'} files
+        </span>
+        <span
+          className={cn(
+            'flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium',
+            snapshot?.taskMode
+              ? 'bg-amber-500/15 text-amber-400'
+              : 'border border-border bg-muted/40 text-muted-foreground'
+          )}
+        >
+          {snapshot?.taskMode ? 'Task mode active' : 'Chat mode active'}
+        </span>
       </div>
+
+      {notice && (
+        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          {notice}
+        </div>
+      )}
+
+      {loading && !snapshot ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading the network configuration…
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {draft.map((endpoint) => {
+            const meta = KIND_META[endpoint.kind] ?? KIND_META.ollama
+            const Icon = meta.icon
+            const state = statusFor(states, endpoint.id)
+            const result = testResults[endpoint.id] ?? (state ? { success: state.online, message: state.detail } : undefined)
+
+            return (
+              <Card key={endpoint.id} className={cn(!endpoint.enabled && 'opacity-60')}>
+                <CardHeader className="gap-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-secondary">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <CardTitle>{endpoint.label}</CardTitle>
+                        <CardDescription className="text-[11px]">{meta.blurb}</CardDescription>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={endpoint.enabled}
+                      onCheckedChange={(checked) => patch(endpoint.id, { enabled: checked })}
+                      aria-label={`Enable ${endpoint.label}`}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {endpoint.roles.map((role) => (
+                      <span key={role} className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground">Model</span>
+                    <Input
+                      value={endpoint.model}
+                      placeholder={endpoint.kind === 'opencode' ? 'OpenCode default' : 'model id'}
+                      onChange={(event) => patch(endpoint.id, { model: event.target.value })}
+                      className="h-8 text-xs"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {endpoint.kind === 'opencode' ? 'HTTP base URL (blank = CLI)' : 'Base URL'}
+                    </span>
+                    <Input
+                      value={endpoint.baseUrl}
+                      placeholder={endpoint.kind === 'ollama' ? 'http://127.0.0.1:11434' : 'https://…'}
+                      onChange={(event) => patch(endpoint.id, { baseUrl: event.target.value })}
+                      className="h-8 text-xs"
+                    />
+                  </label>
+
+                  {endpoint.kind === 'opencode' && (
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-medium text-muted-foreground">Transport</span>
+                      <div className="flex gap-1">
+                        {(['auto', 'http', 'cli'] as const).map((transport) => (
+                          <button
+                            key={transport}
+                            onClick={() => patch(endpoint.id, { transport })}
+                            className={cn(
+                              'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
+                              (endpoint.transport ?? 'auto') === transport
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {transport}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => void test(endpoint)}
+                      disabled={testing === endpoint.id || !endpoint.enabled}
+                    >
+                      {testing === endpoint.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Test
+                    </Button>
+                    {result && (
+                      <span
+                        className={cn(
+                          'flex min-w-0 items-center gap-1 text-[11px]',
+                          result.success ? 'text-emerald-400' : 'text-destructive'
+                        )}
+                        title={result.message}
+                      >
+                        {result.success ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <XCircle className="h-3 w-3 shrink-0" />}
+                        <span className="truncate">{result.message}</span>
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <ShieldCheck className="h-4 w-4" /> Task-mode guards
+          </CardTitle>
+          <CardDescription>
+            Enforced by the main process on every Task run — before a single change is kept.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2">
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span>TypeScript/JavaScript AST parse + JSON parse for every touched file.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span>Electron boundary rules: renderer cannot import electron or main-process code.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span>Protected paths: {guards?.protectedGlobs.length ?? 0} patterns (node_modules, .git, .flame, build output, lockfiles).</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span>Rejected runs are restored byte-for-byte from the run snapshot; kept runs roll back with “rollback”.</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <KeyRound className="h-4 w-4" /> Configuration source
+          </CardTitle>
+          <CardDescription>
+            Endpoints, routing and guards live here. API keys never do — the Gemini endpoint only names the env var that may hold one.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs">
+          <div className="rounded bg-muted/50 px-2.5 py-2 font-mono text-[11px] text-muted-foreground">
+            {snapshot?.config.configPath ?? '.flame/coder_config.json'}
+          </div>
+          <div className="flex flex-wrap gap-2 text-muted-foreground">
+            <span className="rounded bg-muted px-2 py-0.5">chat: {snapshot?.config.routing.chat.join(' → ') || '—'}</span>
+            <span className="rounded bg-muted px-2 py-0.5">task: {snapshot?.config.routing.task.join(' → ') || '—'}</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

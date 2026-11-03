@@ -50,6 +50,7 @@ export async function setGoogleApiKeys(raw: string): Promise<void> {
   const secrets = await readSecrets()
   secrets.googleApiKeys = keys
   secrets.googleApiKey = keys[0] ?? ''
+  secrets.failedGoogleApiKeys = []
   await writeSecrets(secrets)
 }
 
@@ -59,8 +60,18 @@ export async function setGoogleApiKey(key: string): Promise<void> {
 
 export async function getAllGoogleApiKeys(): Promise<string[]> {
   const secrets = await readSecrets()
-  const keys = Array.isArray(secrets.googleApiKeys) ? secrets.googleApiKeys : []
-  return keys.filter(Boolean)
+  const rawList = Array.isArray(secrets.googleApiKeys)
+    ? [...secrets.googleApiKeys]
+    : secrets.googleApiKey
+      ? [secrets.googleApiKey]
+      : []
+
+  const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+  if (envKey && !rawList.includes(envKey)) {
+    rawList.push(envKey)
+  }
+
+  return rawList.map((k) => k?.trim()).filter(Boolean)
 }
 
 export async function getGoogleApiKey(): Promise<string | null> {
@@ -69,11 +80,19 @@ export async function getGoogleApiKey(): Promise<string | null> {
 }
 
 export async function getNextGoogleApiKey(): Promise<string | null> {
+  const keys = await getAllGoogleApiKeys()
   const secrets = await readSecrets()
-  const keys = (Array.isArray(secrets.googleApiKeys) ? secrets.googleApiKeys : []).filter(Boolean)
   const failed = new Set(Array.isArray(secrets.failedGoogleApiKeys) ? secrets.failedGoogleApiKeys : [])
   const next = keys.find((key) => !failed.has(key))
-  return next ?? keys[0] ?? null
+  if (next) return next
+
+  // If all keys are marked failed, clear the failed list so requests are never permanently blocked
+  if (keys.length > 0) {
+    secrets.failedGoogleApiKeys = []
+    await writeSecrets(secrets).catch(() => {})
+    return keys[0]
+  }
+  return null
 }
 
 export async function markKeyFailed(key: string): Promise<void> {
@@ -84,6 +103,12 @@ export async function markKeyFailed(key: string): Promise<void> {
     failed.add(trimmed)
   }
   secrets.failedGoogleApiKeys = [...failed]
+  await writeSecrets(secrets)
+}
+
+export async function resetFailedKeys(): Promise<void> {
+  const secrets = await readSecrets()
+  secrets.failedGoogleApiKeys = []
   await writeSecrets(secrets)
 }
 
@@ -107,10 +132,6 @@ export async function addGeminiModel(modelId: string): Promise<string[]> {
   const existing = (secrets.geminiModels as string[]) || []
   const next = existing.includes(trimmed) ? existing : [...existing, trimmed]
   secrets.geminiModels = next
-  // The one case FlameAGI picks a model without being told: the FIRST
-  // model the user ever adds becomes active, since otherwise nothing
-  // works at all. This is selecting the user's own just-entered id, not
-  // inventing one — every model name in this file comes from the user.
   if (!secrets.geminiActiveModel) secrets.geminiActiveModel = trimmed
   await writeSecrets(secrets)
   return next
@@ -151,10 +172,6 @@ export async function setVisionModel(modelId: string): Promise<void> {
 
 export async function isVisionEnabled(): Promise<boolean> {
   const secrets = await readSecrets()
-  // Default ON. The earlier default-off was the actual cause of vision
-  // silently doing nothing — nobody knew they needed to flip a switch
-  // first. A missing MODEL is still a hard requirement (see below) —
-  // this only removes the invisible second gate.
   return secrets.visionEnabled === undefined ? true : !!secrets.visionEnabled
 }
 

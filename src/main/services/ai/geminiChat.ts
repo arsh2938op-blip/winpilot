@@ -9,7 +9,7 @@ const GENERATIVE_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
  * configured, this fails with a precise, actionable message rather than
  * guessing at a model id (which is exactly what produced the earlier 404).
  */
-export async function askGemini(prompt: string): Promise<string> {
+export async function askGemini(prompt: string, signal?: AbortSignal): Promise<string> {
   const model = await getActiveGeminiModel()
   if (!model) {
     throw new Error('No Gemini model configured. Add a model ID in Flame Chat Settings.')
@@ -19,6 +19,7 @@ export async function askGemini(prompt: string): Promise<string> {
     const res = await fetch(`${GENERATIVE_URL}/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal,
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     })
 

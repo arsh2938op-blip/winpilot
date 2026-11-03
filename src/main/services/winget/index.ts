@@ -3,12 +3,19 @@ import type { WingetPackage, WingetProgressEvent } from '@shared/types'
 import { IpcChannels } from '@shared/ipc-channels'
 import { runCommand } from '../../utils/runCommand'
 import { parseWingetTable } from './parseWingetTable'
+import {
+  enrichPackagesWithIcons,
+  getIconForPackage,
+  getWingetMetadata
+} from './iconService'
+
+export { getIconForPackage, getWingetMetadata }
 
 export async function listInstalled(): Promise<WingetPackage[]> {
   const { stdout } = await runCommand('winget', ['list', '--accept-source-agreements'])
   const rows = parseWingetTable(stdout)
 
-  return rows.map(
+  const packages = rows.map(
     (row): WingetPackage => ({
       id: row.Id ?? '',
       name: row.Name ?? '',
@@ -17,6 +24,8 @@ export async function listInstalled(): Promise<WingetPackage[]> {
       source: row.Source || 'winget'
     })
   )
+
+  return enrichPackagesWithIcons(packages)
 }
 
 /**
@@ -26,41 +35,61 @@ export async function listInstalled(): Promise<WingetPackage[]> {
  * than filtering listInstalled() client-side.
  */
 export async function listUpgradable(): Promise<WingetPackage[]> {
-  const { stdout } = await runCommand('winget', ['upgrade', '--accept-source-agreements'])
-  const rows = parseWingetTable(stdout)
+  try {
+    const { stdout } = await runCommand('winget', ['upgrade', '--accept-source-agreements'])
+    const rows = parseWingetTable(stdout)
 
-  return rows
-    .filter((row) => row.Id) // winget sometimes prints a trailing summary line with no Id
-    .map(
-      (row): WingetPackage => ({
-        id: row.Id ?? '',
-        name: row.Name ?? '',
-        version: row.Version ?? '',
-        availableVersion: row.Available || undefined,
-        source: row.Source || 'winget'
-      })
-    )
+    const packages = rows
+      .filter((row) => row.Id) // winget sometimes prints a trailing summary line with no Id
+      .map(
+        (row): WingetPackage => ({
+          id: row.Id ?? '',
+          name: row.Name ?? '',
+          version: row.Version ?? '',
+          availableVersion: row.Available || undefined,
+          source: row.Source || 'winget'
+        })
+      )
+
+    return enrichPackagesWithIcons(packages)
+  } catch (err) {
+    const msg = String(err)
+    if (msg.includes('No applicable update found') || msg.includes('No installed package found')) {
+      return []
+    }
+    throw err
+  }
 }
 
 export async function search(query: string): Promise<WingetPackage[]> {
   const trimmed = query.trim()
   if (!trimmed) return []
 
-  const { stdout } = await runCommand('winget', [
-    'search',
-    trimmed,
-    '--accept-source-agreements'
-  ])
-  const rows = parseWingetTable(stdout)
+  try {
+    const { stdout } = await runCommand('winget', [
+      'search',
+      trimmed,
+      '--accept-source-agreements'
+    ])
+    const rows = parseWingetTable(stdout)
 
-  return rows.map(
-    (row): WingetPackage => ({
-      id: row.Id ?? '',
-      name: row.Name ?? '',
-      version: row.Version ?? '',
-      source: row.Source || 'winget'
-    })
-  )
+    const packages = rows.map(
+      (row): WingetPackage => ({
+        id: row.Id ?? '',
+        name: row.Name ?? '',
+        version: row.Version ?? '',
+        source: row.Source || 'winget'
+      })
+    )
+
+    return enrichPackagesWithIcons(packages)
+  } catch (err) {
+    const msg = String(err)
+    if (msg.includes('No package found')) {
+      return []
+    }
+    throw err
+  }
 }
 
 function broadcastProgress(event: WingetProgressEvent): void {
@@ -102,11 +131,9 @@ export async function update(packageId: string): Promise<void> {
 }
 
 /**
- * Uninstall. This is the only destructive winget action — the renderer
+ * Uninstall. This is a destructive winget action — the renderer
  * MUST show a confirmation dialog before ever calling this (see
- * ConfirmDialog usage in WingetManager/index.tsx). This function itself
- * doesn't re-confirm anything; by the time this runs, the user has
- * already agreed.
+ * ConfirmDialog usage in WingetManager/index.tsx).
  */
 export async function uninstall(packageId: string): Promise<void> {
   broadcastProgress({ packageId, status: 'running', message: 'Uninstalling…' })

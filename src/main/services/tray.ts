@@ -1,6 +1,6 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
 import { join } from 'path'
-import { toggleOrb } from './orb/window'
+import { toggleOrb, disableOrb } from './orb/window'
 import { showMainWindow } from './appWindow'
 
 /**
@@ -28,7 +28,8 @@ export function ensureTray(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open FlameAGI', click: () => showMainWindow() },
-      { label: 'Toggle floating orb', click: () => void toggleOrb() },
+      { label: 'Close Pet Mode', click: () => void disableOrb() },
+      { label: 'Toggle Pet Mode', click: () => void toggleOrb() },
       { type: 'separator' },
       { label: 'Quit FlameAGI', click: () => app.quit() }
     ])

@@ -6,7 +6,8 @@ import {
   Trash2,
   Loader2,
   Search,
-  Check
+  Check,
+  Package
 } from 'lucide-react'
 import { PageHeader } from '@renderer/components/shared/PageHeader'
 import { PlaceholderCard } from '@renderer/components/shared/PlaceholderCard'
@@ -49,6 +50,14 @@ export default function WingetManager(): React.JSX.Element {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [installedIds, setInstalledIds] = useState<Set<string>>(new Set())
   const [updatedIds, setUpdatedIds] = useState<Set<string>>(new Set())
+
+  // Install confirmation
+  const [installTarget, setInstallTarget] = useState<WingetPackage | null>(null)
+  const [installing, setInstalling] = useState(false)
+
+  // Update confirmation
+  const [updateTarget, setUpdateTarget] = useState<WingetPackage | null>(null)
+  const [updating, setUpdating] = useState(false)
 
   // Uninstall confirmation
   const [uninstallTarget, setUninstallTarget] = useState<WingetPackage | null>(null)
@@ -94,29 +103,36 @@ export default function WingetManager(): React.JSX.Element {
     }
   }
 
-  const handleInstall = async (packageId: string): Promise<void> => {
-    if (!window.api?.winget) return
+  const confirmInstall = async (): Promise<void> => {
+    if (!window.api?.winget || !installTarget) return
+    const packageId = installTarget.id
+    setInstalling(true)
     setBusyId(packageId)
     try {
       await window.api.winget.install(packageId)
       setInstalledIds((prev) => new Set(prev).add(packageId))
-    } catch {
-      // Error already reflected by the caller's try/catch surfacing; the
-      // button just resets below so the user can retry.
+      setInstallTarget(null)
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Installation failed.')
     } finally {
+      setInstalling(false)
       setBusyId(null)
     }
   }
 
-  const handleUpdate = async (packageId: string): Promise<void> => {
-    if (!window.api?.winget) return
+  const confirmUpdate = async (): Promise<void> => {
+    if (!window.api?.winget || !updateTarget) return
+    const packageId = updateTarget.id
+    setUpdating(true)
     setBusyId(packageId)
     try {
       await window.api.winget.update(packageId)
       setUpdatedIds((prev) => new Set(prev).add(packageId))
-    } catch {
-      // Same as above — button resets, user can retry.
+      setUpdateTarget(null)
+    } catch (err) {
+      setUpgradableError(err instanceof Error ? err.message : 'Update failed.')
     } finally {
+      setUpdating(false)
       setBusyId(null)
     }
   }
@@ -232,7 +248,7 @@ export default function WingetManager(): React.JSX.Element {
               mode="discover"
               busyId={busyId}
               installedIds={installedIds}
-              onInstall={handleInstall}
+              onInstallRequest={setInstallTarget}
             />
           )}
         </>
@@ -249,25 +265,117 @@ export default function WingetManager(): React.JSX.Element {
           mode="updates"
           busyId={busyId}
           updatedIds={updatedIds}
-          onUpdate={handleUpdate}
+          onUpdateRequest={setUpdateTarget}
         />
       )}
 
+      {/* Install Confirmation Dialog (Matches uninstallation UX pattern) */}
+      <ConfirmDialog
+        open={installTarget !== null}
+        onOpenChange={(open) => !open && setInstallTarget(null)}
+        title={`Install ${installTarget?.name ?? 'this application'}?`}
+        description="Please confirm that you want FlameAGI to install this application on your PC via Winget."
+        confirmLabel="Install"
+        destructive={false}
+        loading={installing}
+        onConfirm={confirmInstall}
+      >
+        {installTarget && (
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+            <WingetItemIcon icon={installTarget.icon} name={installTarget.name} className="h-10 w-10" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate text-foreground">{installTarget.name}</p>
+              <p className="text-xs text-muted-foreground truncate font-mono">{installTarget.id} · v{installTarget.version}</p>
+              {installTarget.source && (
+                <p className="text-[11px] text-muted-foreground truncate">Source: {installTarget.source}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Update Confirmation Dialog */}
+      <ConfirmDialog
+        open={updateTarget !== null}
+        onOpenChange={(open) => !open && setUpdateTarget(null)}
+        title={`Update ${updateTarget?.name ?? 'this application'}?`}
+        description="Please confirm that you want FlameAGI to upgrade this application via Winget."
+        confirmLabel="Update"
+        destructive={false}
+        loading={updating}
+        onConfirm={confirmUpdate}
+      >
+        {updateTarget && (
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+            <WingetItemIcon icon={updateTarget.icon} name={updateTarget.name} className="h-10 w-10" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate text-foreground">{updateTarget.name}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {updateTarget.id} · v{updateTarget.version} → <span className="font-semibold text-primary">{updateTarget.availableVersion}</span>
+              </p>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Uninstall Confirmation Dialog */}
       <ConfirmDialog
         open={uninstallTarget !== null}
         onOpenChange={(open) => !open && setUninstallTarget(null)}
         title={`Uninstall ${uninstallTarget?.name ?? 'this app'}?`}
-        description="This will remove the application from your PC. This can't be undone from WinPilot."
+        description="This will remove the application from your PC. This can't be undone from FlameAGI."
         confirmLabel="Uninstall"
         destructive
         loading={uninstalling}
         onConfirm={confirmUninstall}
-      />
+      >
+        {uninstallTarget && (
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+            <WingetItemIcon icon={uninstallTarget.icon} name={uninstallTarget.name} className="h-10 w-10" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate text-foreground">{uninstallTarget.name}</p>
+              <p className="text-xs text-muted-foreground truncate font-mono">{uninstallTarget.id} · v{uninstallTarget.version}</p>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }
 
 type ListMode = 'installed' | 'discover' | 'updates'
+
+function WingetItemIcon({
+  icon,
+  name,
+  className = 'h-8 w-8'
+}: {
+  icon?: string
+  name: string
+  className?: string
+}): React.JSX.Element {
+  const [error, setError] = useState(false)
+  if (icon && !error) {
+    return (
+      <img
+        src={icon}
+        alt={name}
+        className={cn('shrink-0 rounded object-contain bg-background/50 p-0.5 border border-border/30', className)}
+        onError={() => setError(true)}
+      />
+    )
+  }
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary font-semibold text-xs uppercase border border-border/30',
+        className
+      )}
+    >
+      {name ? name.trim().substring(0, 2) : <Package className="h-4 w-4 text-muted-foreground" />}
+    </div>
+  )
+}
 
 function PackageList({
   loading,
@@ -280,8 +388,8 @@ function PackageList({
   busyId,
   installedIds,
   updatedIds,
-  onInstall,
-  onUpdate,
+  onInstallRequest,
+  onUpdateRequest,
   onUninstallRequest
 }: {
   loading: boolean
@@ -294,8 +402,8 @@ function PackageList({
   busyId: string | null
   installedIds?: Set<string>
   updatedIds?: Set<string>
-  onInstall?: (packageId: string) => void
-  onUpdate?: (packageId: string) => void
+  onInstallRequest?: (pkg: WingetPackage) => void
+  onUpdateRequest?: (pkg: WingetPackage) => void
   onUninstallRequest?: (pkg: WingetPackage) => void
 }): React.JSX.Element {
   if (loading) {
@@ -341,21 +449,24 @@ function PackageList({
                 index !== items.length - 1 && 'border-b border-border'
               )}
             >
-              <div>
-                <p className="font-medium">{app.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {app.id} · v{app.version}
-                  {app.availableVersion ? ` → ${app.availableVersion}` : ''}
-                </p>
+              <div className="flex items-center gap-3 min-w-0 pr-4">
+                <WingetItemIcon icon={app.icon} name={app.name} className="h-8 w-8" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate text-foreground">{app.name}</p>
+                  <p className="text-xs text-muted-foreground truncate font-mono">
+                    {app.id} · v{app.version}
+                    {app.availableVersion ? ` → ${app.availableVersion}` : ''}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 {mode === 'discover' && (
                   <Button
                     size="sm"
                     variant={isInstalled ? 'secondary' : 'default'}
                     disabled={isBusy || isInstalled || !app.id}
-                    onClick={() => onInstall?.(app.id)}
+                    onClick={() => onInstallRequest?.(app)}
                   >
                     {isBusy ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -373,7 +484,7 @@ function PackageList({
                     size="sm"
                     variant={isUpdated ? 'secondary' : 'default'}
                     disabled={isBusy || isUpdated || !app.id}
-                    onClick={() => onUpdate?.(app.id)}
+                    onClick={() => onUpdateRequest?.(app)}
                   >
                     {isBusy ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

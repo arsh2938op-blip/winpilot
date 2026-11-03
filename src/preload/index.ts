@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type {
   PlatformInfo,
+  UserProfile,
   SystemSnapshot,
   WingetPackage,
   WingetProgressEvent,
@@ -12,6 +13,9 @@ import type {
   ZapierToolInfo,
   MemoryEntry,
   AiNetworkStatus,
+  AiNetworkConfig,
+  AiNetworkSnapshot,
+  ChatMode,
   ChatModelId,
   GeminiModelInfo,
   ImportedProject,
@@ -22,9 +26,32 @@ import type {
   AgentActivityEvent,
   DebateTurnEvent,
   DebateEndedEvent,
+  SkillUnlockedEvent,
+  AgentStatusEvent,
   FlameDifficulty,
   OrbAccent,
-  OrbWindowState
+  OrbWindowState,
+  ChessPositionTelemetry,
+  ChessMoveResult,
+  ChessGameReview,
+  ChessMatchResult,
+  ChessApiProfile,
+  ChessArenaState,
+  ChessGameMode,
+  ChessPlayerProfile,
+  ChessPlayersState,
+  Combo,
+  ComboRunResult,
+  ComboProgressEvent,
+  DueMessage,
+  DueMessageStatus,
+  CreateDueMessageInput,
+  FlamePluginMeta,
+  ImageGenerationOptions,
+  GeneratedImageResult,
+  McpServerStatus,
+  ErrorGuardianIncident,
+  HealProposalPayload
 } from '@shared/types'
 
 const api = {
@@ -35,7 +62,9 @@ const api = {
     copyText: (text: string): Promise<void> => ipcRenderer.invoke(IpcChannels.app.copyText, text),
     pickImage: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.app.pickImage),
     pickAnyFile: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.app.pickAnyFile),
-    pickAnyFolder: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.app.pickAnyFolder)
+    pickAnyFolder: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.app.pickAnyFolder),
+    openPath: (targetPath: string): Promise<string> => ipcRenderer.invoke(IpcChannels.app.openPath, targetPath),
+    showItemInFolder: (targetPath: string): Promise<void> => ipcRenderer.invoke(IpcChannels.app.showItemInFolder, targetPath)
   },
 
   window: {
@@ -62,6 +91,12 @@ const api = {
       ipcRenderer.invoke(IpcChannels.winget.update, packageId),
     uninstall: (packageId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannels.winget.uninstall, packageId),
+    getIcon: (packageId: string, packageName?: string): Promise<string | undefined> =>
+      ipcRenderer.invoke(IpcChannels.winget.getIcon, packageId, packageName),
+    getMetadata: (
+      packageId: string
+    ): Promise<{ icon?: string; description?: string; publisher?: string; homepage?: string }> =>
+      ipcRenderer.invoke(IpcChannels.winget.getMetadata, packageId),
     onProgress: (callback: (event: WingetProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, payload: WingetProgressEvent): void => callback(payload)
       ipcRenderer.on(IpcChannels.winget.onProgress, listener)
@@ -71,6 +106,25 @@ const api = {
 
   system: {
     getSnapshot: (): Promise<SystemSnapshot> => ipcRenderer.invoke(IpcChannels.system.getSnapshot)
+  },
+
+  combos: {
+    list: (): Promise<Combo[]> => ipcRenderer.invoke(IpcChannels.combos.list),
+    save: (payload: {
+      id?: string
+      name: string
+      description?: string
+      toDo?: string
+      steps?: Combo['steps']
+    }): Promise<Combo> => ipcRenderer.invoke(IpcChannels.combos.save, payload),
+    delete: (id: string): Promise<boolean> => ipcRenderer.invoke(IpcChannels.combos.delete, id),
+    execute: (idOrName: string): Promise<ComboRunResult> =>
+      ipcRenderer.invoke(IpcChannels.combos.execute, idOrName),
+    onProgress: (callback: (event: ComboProgressEvent) => void): (() => void) => {
+      const listener = (_: unknown, payload: ComboProgressEvent): void => callback(payload)
+      ipcRenderer.on(IpcChannels.combos.onProgress, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.combos.onProgress, listener)
+    }
   },
 
   /**
@@ -134,9 +188,10 @@ const api = {
   },
 
   ai: {
-    sendPrompt: (prompt: string, model?: ChatModelId, requestId?: string, effort?: 'low' | 'medium' | 'high' | 'auto'): Promise<AiResponse> =>
-      ipcRenderer.invoke(IpcChannels.ai.sendPrompt, prompt, model, requestId, effort),
+    sendPrompt: (prompt: string, model?: ChatModelId, requestId?: string, effort?: 'low' | 'medium' | 'high' | 'auto', mode?: ChatMode): Promise<AiResponse> =>
+      ipcRenderer.invoke(IpcChannels.ai.sendPrompt, prompt, model, requestId, effort, mode),
     stopDebate: (): Promise<void> => ipcRenderer.invoke(IpcChannels.ai.stopDebate),
+    interrupt: (): Promise<void> => ipcRenderer.invoke(IpcChannels.ai.interrupt),
     checkStatus: (): Promise<AiStatus> => ipcRenderer.invoke(IpcChannels.ai.checkStatus),
     setGoogleApiKey: (key: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannels.ai.setGoogleApiKey, key),
@@ -155,7 +210,28 @@ const api = {
     setZapierMcpUrl: (url: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannels.ai.setZapierMcpUrl, url),
     hasZapierMcpUrl: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.ai.hasZapierMcpUrl),
-    listZapierTools: (): Promise<ZapierToolInfo[]> => ipcRenderer.invoke(IpcChannels.ai.listZapierTools)
+    listZapierTools: (): Promise<ZapierToolInfo[]> => ipcRenderer.invoke(IpcChannels.ai.listZapierTools),
+    getOllamaModels: (): Promise<string[]> => ipcRenderer.invoke(IpcChannels.ai.getOllamaModels),
+    saveModelConfig: (
+      config:
+        | {
+            localModel?: string
+            local_model?: string
+            cloudModel?: string
+            cloud_model?: string
+            localKeepAlive?: string
+            local_keep_alive?: string
+          }
+        | string,
+      cloudModel?: string
+    ): Promise<{ success: boolean; config?: unknown }> =>
+      ipcRenderer.invoke(IpcChannels.ai.saveModelConfig, config, cloudModel),
+    getModelConfig: (): Promise<{
+      localModel: string
+      cloudModel: string
+      localKeepAlive: string
+      raw: Record<string, unknown>
+    }> => ipcRenderer.invoke(IpcChannels.ai.getModelConfig)
   },
 
   agent: {
@@ -173,6 +249,16 @@ const api = {
       const listener = (_event: unknown, payload: DebateEndedEvent): void => callback(payload)
       ipcRenderer.on(IpcChannels.agent.debateEnded, listener)
       return () => ipcRenderer.removeListener(IpcChannels.agent.debateEnded, listener)
+    },
+    onSkillUnlocked: (callback: (event: SkillUnlockedEvent) => void): (() => void) => {
+      const listener = (_event: unknown, payload: SkillUnlockedEvent): void => callback(payload)
+      ipcRenderer.on(IpcChannels.agent.skillUnlocked, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.agent.skillUnlocked, listener)
+    },
+    onStatusChange: (callback: (event: AgentStatusEvent) => void): (() => void) => {
+      const listener = (_event: unknown, payload: AgentStatusEvent): void => callback(payload)
+      ipcRenderer.on(IpcChannels.agent.statusChange, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.agent.statusChange, listener)
     }
   },
 
@@ -207,7 +293,13 @@ const api = {
     setDebateRounds: (rounds: number): Promise<void> => ipcRenderer.invoke(IpcChannels.aiNetwork.setDebateRounds, rounds),
     getDifficulty: (): Promise<FlameDifficulty> => ipcRenderer.invoke(IpcChannels.aiNetwork.getDifficulty),
     setDifficulty: (difficulty: FlameDifficulty): Promise<void> =>
-      ipcRenderer.invoke(IpcChannels.aiNetwork.setDifficulty, difficulty)
+      ipcRenderer.invoke(IpcChannels.aiNetwork.setDifficulty, difficulty),
+    getConfig: (): Promise<AiNetworkConfig> => ipcRenderer.invoke(IpcChannels.aiNetwork.getConfig),
+    updateConfig: (update: Partial<AiNetworkConfig>): Promise<AiNetworkConfig> =>
+      ipcRenderer.invoke(IpcChannels.aiNetwork.updateConfig, update),
+    getSnapshot: (): Promise<AiNetworkSnapshot> => ipcRenderer.invoke(IpcChannels.aiNetwork.getSnapshot),
+    testEndpoint: (endpointId: string): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannels.aiNetwork.testEndpoint, endpointId)
   },
 
   projects: {
@@ -239,6 +331,7 @@ const api = {
     start: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannels.minecraft.start),
     stop: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannels.minecraft.stop),
     getStatus: (): Promise<MinecraftStatus> => ipcRenderer.invoke(IpcChannels.minecraft.getStatus),
+    getBotState: (): Promise<any> => ipcRenderer.invoke(IpcChannels.minecraft.getBotState),
     onLog: (cb: (line: MinecraftLogLine) => void): (() => void) => {
       const l = (_: unknown, p: MinecraftLogLine): void => cb(p)
       ipcRenderer.on(IpcChannels.minecraft.onLog, l)
@@ -248,6 +341,200 @@ const api = {
       const l = (_: unknown, p: MinecraftStatus): void => cb(p)
       ipcRenderer.on(IpcChannels.minecraft.onStatus, l)
       return () => ipcRenderer.removeListener(IpcChannels.minecraft.onStatus, l)
+    },
+    onToggleAgentMode: (cb: () => void): (() => void) => {
+      const l = (): void => cb()
+      ipcRenderer.on('toggle-agent-mode', l)
+      return () => ipcRenderer.removeListener('toggle-agent-mode', l)
+    }
+  },
+
+  chess: {
+    // 2-Player Arena & Director (v2.1)
+    getState: (): Promise<ChessArenaState> => ipcRenderer.invoke(IpcChannels.chess.getState),
+    newGame: (fen?: string): Promise<ChessArenaState> => ipcRenderer.invoke(IpcChannels.chess.newGame, fen),
+    undo: (count?: number): Promise<ChessArenaState> => ipcRenderer.invoke(IpcChannels.chess.undo, count),
+    playHumanVsAiMove: (move: string, aiProfile?: string): Promise<Record<string, unknown>> =>
+      ipcRenderer.invoke(IpcChannels.chess.playHumanVsAiMove, move, aiProfile),
+    directAiTurn: (profileName?: string): Promise<Record<string, unknown>> =>
+      ipcRenderer.invoke(IpcChannels.chess.directAiTurn, profileName),
+    runAiVsAiMatch: (
+      whiteProfile?: string,
+      blackProfile?: string,
+      maxPly?: number,
+      resetFirst?: boolean
+    ): Promise<Record<string, unknown>> =>
+      ipcRenderer.invoke(IpcChannels.chess.runAiVsAiMatch, whiteProfile, blackProfile, maxPly, resetFirst),
+    getPlayers: (): Promise<ChessPlayersState> => ipcRenderer.invoke(IpcChannels.chess.getPlayers),
+    setPlayers: (payload: {
+      game_mode?: ChessGameMode
+      player_1?: Partial<ChessPlayerProfile>
+      player_2?: Partial<ChessPlayerProfile>
+    }): Promise<ChessPlayersState> => ipcRenderer.invoke(IpcChannels.chess.setPlayers, payload),
+    saveApiProfile: (profile: {
+      name: string
+      provider: string
+      model: string
+      endpoint?: string
+      api_key?: string
+    }): Promise<ChessPlayersState> => ipcRenderer.invoke(IpcChannels.chess.saveApiProfile, profile),
+    listApiProfiles: (): Promise<ChessApiProfile[]> => ipcRenderer.invoke(IpcChannels.chess.listApiProfiles),
+
+    // Low-level & compatibility
+    startServer: (port?: number): Promise<{ success: boolean; message: string; port: number }> =>
+      ipcRenderer.invoke(IpcChannels.chess.startServer, port),
+    stopServer: (): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannels.chess.stopServer),
+    getStatus: (): Promise<{ running: boolean; port: number }> =>
+      ipcRenderer.invoke(IpcChannels.chess.getStatus),
+    getPosition: (): Promise<ChessPositionTelemetry> =>
+      ipcRenderer.invoke(IpcChannels.chess.getPosition),
+    makeMove: (move: string): Promise<ChessMoveResult> =>
+      ipcRenderer.invoke(IpcChannels.chess.makeMove, move),
+    getReview: (): Promise<ChessGameReview> =>
+      ipcRenderer.invoke(IpcChannels.chess.getReview),
+    runMatch: (
+      whiteProfile: string,
+      blackProfile: string,
+      maxPly?: number,
+      resetFirst?: boolean
+    ): Promise<ChessMatchResult> =>
+      ipcRenderer.invoke(IpcChannels.chess.runMatch, whiteProfile, blackProfile, maxPly, resetFirst),
+    listApis: (): Promise<{ profiles: ChessApiProfile[] }> =>
+      ipcRenderer.invoke(IpcChannels.chess.listApis),
+    saveApi: (profile: {
+      name: string
+      provider: string
+      model: string
+      endpoint?: string
+      api_key?: string
+    }): Promise<{ status: string; profile: ChessApiProfile }> =>
+      ipcRenderer.invoke(IpcChannels.chess.saveApi, profile)
+  },
+
+  rea: {
+    inspectFile: (filePath: string, requestId?: string) =>
+      ipcRenderer.invoke(IpcChannels.rea.inspectFile, filePath, requestId),
+    inspectAsar: (asarPath: string, requestId?: string) =>
+      ipcRenderer.invoke(IpcChannels.rea.inspectAsar, asarPath, requestId),
+    auditWorkspace: (workspaceDir?: string, requestId?: string) =>
+      ipcRenderer.invoke(IpcChannels.rea.auditWorkspace, workspaceDir, requestId),
+    generateFolder: (
+      args: {
+        folderName: string
+        baseDir?: string
+        files?: Record<string, string>
+        subFolders?: string[]
+      },
+      requestId?: string
+    ) => ipcRenderer.invoke(IpcChannels.rea.generateFolder, args, requestId),
+    exportZip: (
+      args: {
+        sourcePath: string
+        outputZipPath?: string
+      },
+      requestId?: string
+    ) => ipcRenderer.invoke(IpcChannels.rea.exportZip, args, requestId),
+    codeOnEvidence: (
+      args: {
+        task: string
+        targetPath?: string
+        workspaceDir?: string
+      },
+      requestId?: string
+    ) => ipcRenderer.invoke(IpcChannels.rea.codeOnEvidence, args, requestId)
+  },
+
+  dueMessages: {
+    list: (filter?: { status?: DueMessageStatus; workspaceContext?: string }): Promise<DueMessage[]> =>
+      ipcRenderer.invoke(IpcChannels.dueMessages.list, filter),
+    add: (input: CreateDueMessageInput): Promise<DueMessage> =>
+      ipcRenderer.invoke(IpcChannels.dueMessages.add, input),
+    complete: (idOrTitle: string): Promise<DueMessage | null> =>
+      ipcRenderer.invoke(IpcChannels.dueMessages.complete, idOrTitle),
+    dismiss: (idOrTitle: string): Promise<DueMessage | null> =>
+      ipcRenderer.invoke(IpcChannels.dueMessages.dismiss, idOrTitle),
+    delete: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannels.dueMessages.delete, id),
+    onUpdate: (callback: (messages: DueMessage[]) => void): (() => void) => {
+      const listener = (_: unknown, payload: DueMessage[]): void => callback(payload)
+      ipcRenderer.on(IpcChannels.dueMessages.onUpdate, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.dueMessages.onUpdate, listener)
+    }
+  },
+
+  plugins: {
+    list: (): Promise<FlamePluginMeta[]> =>
+      ipcRenderer.invoke(IpcChannels.plugins.list),
+    toggle: (pluginId: string, targetState?: boolean): Promise<{ success: boolean; plugin: FlamePluginMeta }> =>
+      ipcRenderer.invoke(IpcChannels.plugins.toggle, pluginId, targetState),
+    getState: (pluginId: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannels.plugins.getState, pluginId),
+    onStateChange: (callback: (plugins: FlamePluginMeta[]) => void): (() => void) => {
+      const listener = (_: unknown, payload: FlamePluginMeta[]): void => callback(payload)
+      ipcRenderer.on(IpcChannels.plugins.onStateChange, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.plugins.onStateChange, listener)
+    }
+  },
+
+  image: {
+    generate: (input: ImageGenerationOptions | string): Promise<GeneratedImageResult> =>
+      ipcRenderer.invoke(IpcChannels.image.generate, input)
+  },
+
+  mcp: {
+    listServers: (): Promise<McpServerStatus[]> =>
+      ipcRenderer.invoke(IpcChannels.mcp.listServers),
+    getStatus: (): Promise<McpServerStatus[]> =>
+      ipcRenderer.invoke(IpcChannels.mcp.getStatus),
+    reloadServer: (id: string): Promise<McpServerStatus[]> =>
+      ipcRenderer.invoke(IpcChannels.mcp.reloadServer, id),
+    toggleServer: (id: string, enabled: boolean): Promise<McpServerStatus[]> =>
+      ipcRenderer.invoke(IpcChannels.mcp.toggleServer, id, enabled)
+  },
+
+  guardian: {
+    reportError: (errorMessage: string, stack?: string, source?: string): Promise<unknown> =>
+      ipcRenderer.invoke(IpcChannels.guardian.reportError, errorMessage, stack, source),
+    applyHeal: (runId?: string): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannels.guardian.applyHeal, runId),
+    getIncidents: (): Promise<ErrorGuardianIncident[]> =>
+      ipcRenderer.invoke(IpcChannels.guardian.criticalError),
+    onCriticalError: (callback: (incident: ErrorGuardianIncident) => void): (() => void) => {
+      const listener = (_: unknown, payload: ErrorGuardianIncident): void => callback(payload)
+      ipcRenderer.on(IpcChannels.guardian.criticalError, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.guardian.criticalError, listener)
+    },
+    onHealProposal: (callback: (payload: HealProposalPayload) => void): (() => void) => {
+      const listener = (_: unknown, payload: HealProposalPayload): void => callback(payload)
+      ipcRenderer.on(IpcChannels.guardian.healProposal, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.guardian.healProposal, listener)
+    }
+  },
+
+  whatsapp: {
+    getStatus: (): Promise<{ connected: boolean; status: 'disconnected' | 'qr_ready' | 'connected'; qrDataUrl: string | null }> =>
+      ipcRenderer.invoke('whatsapp:get-status'),
+    connect: (): Promise<{ connected: boolean; status: 'disconnected' | 'qr_ready' | 'connected'; qrDataUrl: string | null }> =>
+      ipcRenderer.invoke('whatsapp:connect'),
+    disconnect: (): Promise<{ connected: boolean; status: 'disconnected' | 'qr_ready' | 'connected'; qrDataUrl: string | null }> =>
+      ipcRenderer.invoke('whatsapp:disconnect'),
+    onQrUpdated: (
+      callback: (data: { connected: boolean; status: 'disconnected' | 'qr_ready' | 'connected'; qrDataUrl: string | null }) => void
+    ): (() => void) => {
+      const listener = (_: unknown, data: any): void => callback(data)
+      ipcRenderer.on('whatsapp:qr-updated', listener)
+      return () => ipcRenderer.removeListener('whatsapp:qr-updated', listener)
+    }
+  },
+
+  profile: {
+    get: (): Promise<UserProfile> => ipcRenderer.invoke(IpcChannels.profile.get),
+    set: (patch: Partial<UserProfile>): Promise<UserProfile> => ipcRenderer.invoke(IpcChannels.profile.set, patch),
+    onUpdated: (callback: (profile: UserProfile) => void): (() => void) => {
+      const listener = (_: unknown, data: UserProfile): void => callback(data)
+      ipcRenderer.on(IpcChannels.profile.onUpdated, listener)
+      return () => ipcRenderer.removeListener(IpcChannels.profile.onUpdated, listener)
     }
   }
 }
@@ -257,6 +544,7 @@ export type WinPilotApi = typeof api
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('winpilot', api)
   } catch (error) {
     console.error(error)
   }
@@ -264,4 +552,5 @@ if (process.contextIsolated) {
   // `Window.api` is declared globally in ./index.d.ts, so this assignment is
   // type-checked like any other — no suppression needed.
   window.api = api
+  ;(window as unknown as { winpilot: typeof api }).winpilot = api
 }

@@ -39,7 +39,27 @@ const DEFAULT_CONFIG: MinecraftConfig = {
 
 export async function getMinecraftConfig(): Promise<MinecraftConfig> {
   const secrets = await readSecrets()
-  return { ...DEFAULT_CONFIG, ...((secrets.minecraft as Partial<MinecraftConfig>) || {}) }
+  const cfg = { ...DEFAULT_CONFIG, ...((secrets.minecraft as Partial<MinecraftConfig>) || {}) }
+  if (!cfg.projectPath) {
+    const candidates = [
+      'C:\\Users\\Dell\\OneDrive\\Documents\\mindcraft-develop\\mindcraft-develop',
+      path.resolve(process.cwd(), '..', 'mindcraft-develop', 'mindcraft-develop'),
+      path.resolve(process.cwd(), '..', 'mindcraft-develop')
+    ]
+    for (const c of candidates) {
+      try {
+        if (require('fs').existsSync(c)) {
+          cfg.projectPath = c
+          break
+        }
+      } catch {}
+    }
+  }
+  if (!cfg.modelsOrPreset) {
+    cfg.modelsOrPreset = 'gemini-2.5-flash'
+  }
+  cfg.autoOpenUi = false
+  return cfg
 }
 
 export async function saveMinecraftConfig(config: MinecraftConfig): Promise<void> {

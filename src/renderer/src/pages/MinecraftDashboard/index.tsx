@@ -93,7 +93,7 @@ export default function MinecraftDashboard(): React.JSX.Element {
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span>Minecraft server: {status.serverOnline ? 'Online' : 'Offline'}</span>
-            <span>MindServer: {status.mindserverOnline ? 'Online' : 'Offline'}</span>
+            <span className="text-emerald-400 font-semibold">Engine: Headless Zero-Server</span>
             <span>Bots: {status.bots.length} / {config.botCount}</span>
           </div>
           {!running ? (

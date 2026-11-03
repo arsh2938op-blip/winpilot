@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain } from 'electron'
+import { app, clipboard, dialog, ipcMain, shell } from 'electron'
 import os from 'os'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { PlatformInfo } from '@shared/types'
@@ -40,5 +40,14 @@ export function registerAppIpc(): void {
   ipcMain.handle(IpcChannels.app.pickAnyFolder, async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
+  })
+
+  ipcMain.handle(IpcChannels.app.openPath, async (_event, targetPath: string): Promise<string> => {
+    if (!targetPath) return 'No path specified.'
+    return shell.openPath(targetPath)
+  })
+
+  ipcMain.handle(IpcChannels.app.showItemInFolder, (_event, targetPath: string): void => {
+    if (targetPath) shell.showItemInFolder(targetPath)
   })
 }

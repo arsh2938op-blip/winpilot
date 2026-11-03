@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Minus, Square, Copy, X, Compass, Sparkles } from 'lucide-react'
+import { Minus, Square, Copy, X, Sparkles } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useOrbStore } from '@renderer/store/useOrbStore'
+import { useChatModeStore } from '@renderer/store/useChatModeStore'
+import { FlameIcon } from '@renderer/components/icons/FlameIcon'
 
 /**
  * Custom title bar replacing the native Windows chrome (see
@@ -14,6 +16,7 @@ export function TitleBar(): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false)
   const orbVisible = useOrbStore((s) => s.visible)
   const toggleOrb = useOrbStore((s) => s.toggle)
+  const isAgentMode = useChatModeStore((s) => s.mode === 'task')
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -45,7 +48,7 @@ export function TitleBar(): React.JSX.Element {
   return (
     <div className="app-drag flex h-9 shrink-0 items-center justify-between border-b border-border bg-sidebar pl-3 pr-0 text-sidebar-foreground">
       <div className="flex items-center gap-2">
-        <Compass className="h-4 w-4 text-primary" strokeWidth={2.25} />
+        <FlameIcon size={18} activePulse={isAgentMode} />
         <span className="text-xs font-semibold tracking-wide">FlameAGI</span>
         <button
           onClick={onToggleOrb}

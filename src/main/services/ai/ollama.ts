@@ -1,16 +1,16 @@
-import type { AiIntentResult, AiIntentType, PromptTool, ZapierToolInfo } from '@shared/types'
-import { buildPrompt } from '../../flameCore/promptBuilder'
+import type { AiIntentResult, AiIntentType, AiStatus, PromptTool, ZapierToolInfo } from '@shared/types'
+import { buildPrompt, COMPUTER_USE_PROTOCOL } from '../../flameCore/promptBuilder'
 import type { EffortLevel } from '../../flameCore/effort'
 import type { FlameDifficulty } from '../../flameCore/difficultyStore'
 import { emitAgentActivity } from '../../utils/broadcast'
+import { getActiveLocalModel, readCoderConfig } from './coderConfigStore'
 
 const OLLAMA_URL = 'http://127.0.0.1:11434'
-const MODEL_NAME = 'gemma2:2b'
 
 const INTENT_SYSTEM_PROMPT_BASE = `You are Flame AGI, the assistant built into a Windows app called WinPilot. You can chat normally, control apps on the user's PC, trigger actions in apps connected through Zapier, and remember facts the user tells you to remember.
 
 Output ONLY a single JSON object, nothing else, no markdown fences:
-{"intent": "launch_app" | "install_app" | "update_app" | "uninstall_app" | "external_action" | "remember_fact" | "remember_plan" | "ai_network" | "run_command" | "current_info_search" | "start_debate" | "stop_debate" | "file_operation" | "generate_prompt" | "rsi_improve" | "code_edit" | "unknown", "app": string | null, "instruction": string | null, "factText": string | null, "planText": string | null, "aiTarget": "gemini" | "opencode" | null, "command": string | null, "query": string | null, "topic": string | null, "fileAction": "list" | "read" | "inspectZip" | "extractZip" | "search" | null, "path": string | null, "destDir": string | null, "promptTool": "claude" | "gemini" | "chatgpt" | "opencode" | "other" | null, "reply": string}
+{"intent": "launch_app" | "install_app" | "update_app" | "uninstall_app" | "external_action" | "remember_fact" | "remember_plan" | "ai_network" | "run_command" | "current_info_search" | "start_debate" | "stop_debate" | "file_operation" | "generate_prompt" | "rsi_improve" | "code_edit" | "osint" | "unknown", "app": string | null, "instruction": string | null, "factText": string | null, "planText": string | null, "aiTarget": "gemini" | "opencode" | null, "command": string | null, "query": string | null, "topic": string | null, "fileAction": "list" | "read" | "inspectZip" | "extractZip" | "search" | null, "path": string | null, "destDir": string | null, "promptTool": "claude" | "gemini" | "chatgpt" | "opencode" | "other" | null, "reply": string}
 
 Rules:
 - "open/launch/start <app>" -> intent "launch_app", app = the app's name (lowercase, just the name).
@@ -27,6 +27,7 @@ Rules:
 - Requests to actually CHANGE code in the project ("fix the bug in X", "add validation to Y", "refactor Z", "make X work", "Edit: <task>") -> intent "code_edit", instruction = just the coding task (strip an "Edit:" prefix if present). Only use this when files should be modified; pure questions/what-is explanations stay "ai_network".
 - "run <command>" / "show me the files here" / "create a folder called X" / "open the project folder and run X" -> intent "run_command", command = the precise command text (e.g. "npm run dev", "dir", "mkdir test").
 - Explicit requests for CURRENT/latest/today information ("what happened today", "latest news about X", "look this up", "search for the latest X", "current affairs about X") -> intent "current_info_search", query = the topic. Do NOT use this for normal factual/conversational questions like "tell me about Minecraft" — only when the user explicitly signals they want current/latest/searched information.
+- Requests for OSINT / passive recon on a domain, IP address, or phone number ("osint <target>", "run osint on <target>", "inspect domain/ip/phone <target>") -> intent "osint", query = the target domain, phone number, or IP.
 - "list files in <path>" -> file_operation, fileAction "list", path = the folder.
 - "read <file>" -> file_operation, fileAction "read", path = the file.
 - "what's in this zip <path>" / inspect a ZIP -> file_operation, fileAction "inspectZip", path = the ZIP.
@@ -36,6 +37,7 @@ Rules:
 - "improve this project by <task>" / "use OpenCode to implement <task>" -> rsi_improve, instruction = the requested improvement.
 - For EVERYTHING ELSE — greetings, questions, small talk, advice, general knowledge — set intent to "unknown", other fields null, and write a real, genuinely helpful, conversational answer in "reply". Use any facts listed below naturally if relevant — don't mention that you were "given" them, just know them.
 - For app-related, external_action, and remember_fact intents, "reply" should be a short status line.
+- When performing computer use or desktop automation, always follow: 1. Focus/inspect first, 2. Calculate coordinates, 3. Execute action, 4. Verify.
 - Output ONLY the JSON object. No text before or after it.`
 
 const VALID_INTENTS: AiIntentType[] = [
@@ -54,7 +56,8 @@ const VALID_INTENTS: AiIntentType[] = [
   'file_operation',
   'generate_prompt',
   'rsi_improve',
-  'code_edit'
+  'code_edit',
+  'osint'
 ]
 
 interface OllamaGenerateResponse {
@@ -66,17 +69,24 @@ async function callOllama(
   prompt: string,
   numPredict = 400,
   requestId?: string,
-  formatJson = true
+  formatJson = true,
+  signal?: AbortSignal
 ): Promise<string> {
-  emitAgentActivity(requestId, '[AI] Sending request to model')
+  const activeModel = await getActiveLocalModel()
+  const cfg = await readCoderConfig()
+  const keepAlive = cfg.local_keep_alive || '30s'
+
+  emitAgentActivity(requestId, `[AI] Sending request to local model (${activeModel})`)
   const res = await fetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({
-      model: MODEL_NAME,
+      model: activeModel,
       system,
       prompt,
       stream: false,
+      keep_alive: keepAlive,
       ...(formatJson ? { format: 'json' } : {}),
       options: { temperature: 0.5, num_predict: numPredict }
     })
@@ -89,18 +99,26 @@ async function callOllama(
 }
 
 function extractJson(raw: string): unknown {
-  const match = raw.match(/\{[\s\S]*\}/)
-  return JSON.parse(match ? match[0] : raw)
+  let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  cleaned = cleaned.replace(/```(?:json)?([\s\S]*?)```/gi, '$1').trim()
+  const match = cleaned.match(/\{[\s\S]*\}/)
+  return JSON.parse(match ? match[0] : cleaned)
 }
 
-export async function checkOllamaStatus(): Promise<{ running: boolean; modelReady: boolean }> {
+export async function checkOllamaStatus(): Promise<AiStatus> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 3000)
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/tags`)
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: controller.signal })
+    clearTimeout(timeoutId)
     if (!res.ok) return { running: false, modelReady: false }
     const data = (await res.json()) as { models?: { name: string }[] }
-    const modelReady = !!data.models?.some((m) => m.name.startsWith(MODEL_NAME.split(':')[0]))
-    return { running: true, modelReady }
+    const activeModel = await getActiveLocalModel()
+    const activePrefix = activeModel.split(':')[0]
+    const modelReady = !!data.models?.some((m) => m.name === activeModel || m.name.startsWith(activePrefix))
+    return { running: true, modelReady, activeModel }
   } catch {
+    clearTimeout(timeoutId)
     return { running: false, modelReady: false }
   }
 }
@@ -109,13 +127,14 @@ export async function getIntent(
   prompt: string,
   effort: EffortLevel = 'medium',
   requestId?: string,
-  difficulty?: FlameDifficulty
+  difficulty?: FlameDifficulty,
+  signal?: AbortSignal
 ): Promise<AiIntentResult> {
   emitAgentActivity(requestId, '[Prompt] Building context…')
   const { system, numPredict } = await buildPrompt(INTENT_SYSTEM_PROMPT_BASE, effort, requestId, difficulty)
 
   try {
-    const raw = await callOllama(system, prompt, numPredict, requestId)
+    const raw = await callOllama(system, prompt, numPredict, requestId, true, signal)
     const parsed = extractJson(raw) as {
       intent?: string
       app?: string | null
@@ -153,7 +172,7 @@ export async function getIntent(
           ? parsed.aiTarget
           : undefined,
       command: intent === 'run_command' ? parsed.command ?? undefined : undefined,
-      query: intent === 'current_info_search' ? parsed.query ?? undefined : undefined,
+      query: (intent === 'current_info_search' || intent === 'osint') ? parsed.query ?? undefined : undefined,
       topic: intent === 'start_debate' ? parsed.topic ?? undefined : undefined,
       fileAction: intent === 'file_operation' && ['list', 'read', 'inspectZip', 'extractZip', 'search'].includes(parsed.fileAction ?? '')
         ? parsed.fileAction as AiIntentResult['fileAction'] : undefined,

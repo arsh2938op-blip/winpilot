@@ -7,6 +7,14 @@ import { registerSearchCapabilities } from '../plugins/search/capabilities'
 import { registerFileCapabilities } from '../plugins/files/capabilities'
 import { registerRsiCapabilities } from '../plugins/rsi/capabilities'
 import { registerCoderCapabilities } from '../plugins/coder/capabilities'
+import { registerChessCapabilities } from '../plugins/chess/capabilities'
+import { registerOsintCapabilities } from '../plugins/osint/capabilities'
+import { registerReaCapabilities } from '../plugins/rea/capabilities'
+import { registerImageCapabilities } from '../plugins/image/capabilities'
+import { registerDueMessagesCapabilities } from '../plugins/dueMessages/capabilities'
+import { registerBrowserCapabilities } from '../plugins/browser/capabilities'
+import { registerWhatsAppCapabilities } from '../plugins/whatsapp/capabilities'
+import { initPluginManager } from './pluginManager'
 
 /**
  * The one place every plugin's capabilities get registered at startup.
@@ -23,4 +31,14 @@ export function registerAllCapabilities(): void {
   registerFileCapabilities()
   registerRsiCapabilities()
   registerCoderCapabilities()
+  registerChessCapabilities()
+  registerOsintCapabilities()
+  registerReaCapabilities()
+  registerImageCapabilities()
+  registerDueMessagesCapabilities()
+  registerBrowserCapabilities()
+  registerWhatsAppCapabilities()
+
+  // Initialize and apply dynamic plugin toggle states
+  initPluginManager()
 }

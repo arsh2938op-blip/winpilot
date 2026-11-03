@@ -3,6 +3,8 @@ import { join } from 'path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { OrbAccent, OrbWindowState } from '@shared/types'
 import { getOrbPrefs, loadOrbPrefs, updateOrbPrefs } from './store'
+import { getMainWindow } from '../appWindow'
+import { destroyTray } from '../tray'
 
 /**
  * The floating orb's native window.
@@ -205,6 +207,10 @@ export function disableOrb(): void {
   if (win) win.destroy()
   orbWindow = null
   notifyVisibility(false)
+  if (!getMainWindow()) {
+    destroyTray()
+    app.quit()
+  }
 }
 
 export async function toggleOrb(): Promise<OrbWindowState> {

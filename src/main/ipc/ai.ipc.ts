@@ -6,27 +6,37 @@ import type {
   GoogleSpeakResult,
   GoogleTranscribeResult,
   ZapierToolInfo,
-  ChatModelId
+  ChatModelId,
+  ChatMode
 } from '@shared/types'
 import { getCapability } from '../flameCore/capabilities'
 import type { EffortLevel } from '../flameCore/effort'
-import { handlePrompt, checkOllamaStatus } from '../services/ai'
+import { handlePrompt, checkOllamaStatus, interruptActiveTasks } from '../services/ai'
 import { setGoogleApiKeys, hasGoogleApiKey, keyCount } from '../services/ai/googleKeyStore'
 import { googleSpeak, googleTranscribe } from '../services/ai/googleVoice'
 import { setZapierMcpUrl, hasZapierMcpUrl } from '../services/ai/zapierStore'
 import { resetZapierClient, listToolSummaries } from '../services/ai/zapierClient'
 import { stopDebate } from '../services/ai/debate'
+import {
+  getInstalledOllamaModels,
+  saveModelConfig,
+  getModelConfig
+} from '../services/ai/coderConfigStore'
 
 export function registerAiIpc(): void {
   ipcMain.handle(
     IpcChannels.ai.sendPrompt,
-    async (_event, prompt: string, model?: ChatModelId, requestId?: string, effort?: EffortLevel | 'auto'): Promise<AiResponse> => {
-      return handlePrompt(prompt, model, requestId, effort)
+    async (_event, prompt: string, model?: ChatModelId, requestId?: string, effort?: EffortLevel | 'auto', mode?: ChatMode): Promise<AiResponse> => {
+      return handlePrompt(prompt, model, requestId, effort, mode)
     }
   )
 
   ipcMain.handle(IpcChannels.ai.stopDebate, async (): Promise<void> => {
     stopDebate()
+  })
+
+  ipcMain.handle(IpcChannels.ai.interrupt, async (): Promise<void> => {
+    interruptActiveTasks()
   })
 
   ipcMain.handle(IpcChannels.ai.checkStatus, async (): Promise<AiStatus> => {
@@ -100,4 +110,39 @@ export function registerAiIpc(): void {
       return []
     }
   })
+
+  // Dynamic Ollama model discovery and coder config management
+  ipcMain.handle(IpcChannels.ai.getOllamaModels, async (): Promise<string[]> => {
+    return getInstalledOllamaModels()
+  })
+
+  ipcMain.handle(
+    IpcChannels.ai.saveModelConfig,
+    async (
+      _event,
+      config: {
+        localModel?: string
+        local_model?: string
+        cloudModel?: string
+        cloud_model?: string
+        localKeepAlive?: string
+        local_keep_alive?: string
+      } | string,
+      cloudModelArg?: string
+    ) => {
+      return saveModelConfig(config, cloudModelArg)
+    }
+  )
+
+  ipcMain.handle(IpcChannels.ai.getModelConfig, async () => {
+    return getModelConfig()
+  })
+
+  // Ensure direct literal string channels are registered as fallback if not matching exactly
+  if (IpcChannels.ai.getOllamaModels !== 'get-ollama-models') {
+    ipcMain.handle('get-ollama-models', async () => getInstalledOllamaModels())
+  }
+  if (IpcChannels.ai.saveModelConfig !== 'save-model-config') {
+    ipcMain.handle('save-model-config', async (_event, config, cloudModel) => saveModelConfig(config, cloudModel))
+  }
 }

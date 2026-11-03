@@ -8,9 +8,20 @@ import { registerProjectIpc } from './project.ipc'
 import { registerProjectsIpc } from './projects.ipc'
 import { registerContactsIpc } from './contacts.ipc'
 import { registerAiNetworkIpc } from './aiNetwork.ipc'
+import { registerAiNetworkUnifiedIpc } from './aiNetworkUnified.ipc'
 import { registerMinecraftIpc } from './minecraft.ipc'
+import { registerChessIpc } from './chess.ipc'
 import { registerFilesIpc } from './files.ipc'
 import { registerOrbIpc } from './orb.ipc'
+import { registerReaIpc } from './rea.ipc'
+import { registerCombosIpc } from './combos.ipc'
+import { registerDueMessagesIpc } from './dueMessages.ipc'
+import { registerPluginsIpc } from './plugins.ipc'
+import { registerImageIpc } from './image.ipc'
+import { registerMcpIpc } from './mcp.ipc'
+import { registerGuardianIpc } from './guardian.ipc'
+import { registerWhatsappIpc } from './whatsapp.ipc'
+import { registerProfileIpc } from './profile.ipc'
 
 /**
  * Registers every feature's IPC handlers.
@@ -40,7 +51,18 @@ export function registerIpcHandlers(): void {
   registerProjectsIpc()
   registerContactsIpc()
   registerAiNetworkIpc()
+  registerAiNetworkUnifiedIpc()
   registerMinecraftIpc()
+  registerChessIpc()
   registerFilesIpc()
   registerOrbIpc()
+  registerReaIpc()
+  registerCombosIpc()
+  registerDueMessagesIpc()
+  registerPluginsIpc()
+  registerImageIpc()
+  registerMcpIpc()
+  registerGuardianIpc()
+  registerWhatsappIpc()
+  registerProfileIpc()
 }

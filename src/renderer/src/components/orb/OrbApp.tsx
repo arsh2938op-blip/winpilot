@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Check, ChevronDown, Loader2, Mic, MicOff, Minus, Plus, Send, Square, Volume2, VolumeX } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Loader2, Mic, MicOff, Minus, Plus, Send, Square, Volume2, VolumeX, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useVoice } from '@renderer/hooks/useVoice'
 import { createLocalListener, type LocalListener, type LocalListenerState } from '@renderer/lib/voice/localListening'
 import { CodeBlock } from '@renderer/components/shared/CodeBlock'
-import { FlamePet } from '@renderer/components/shared/FlamePet'
+import { FlameIcon } from '@renderer/components/icons/FlameIcon'
+import { BlackFlamePet, type PetModeState } from '@renderer/components/pet/BlackFlamePet'
 import {
   loadChats,
   saveChat,
@@ -76,6 +77,7 @@ export function OrbApp(): React.JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [hasGoogleKey, setHasGoogleKey] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
+  const [showContextMenu, setShowContextMenu] = useState(false)
 
   // The main process watches system idle time and pings us after a minute;
   // we own what the pet actually says.
@@ -145,6 +147,31 @@ export function OrbApp(): React.JSX.Element {
     },
     [speak]
   )
+
+  const interrupt = useCallback((): void => {
+    if (speaking) {
+      stopSpeaking()
+      setSpeaking(false)
+    }
+    if (listening) {
+      stopListening()
+    }
+    if (busyRef.current) {
+      window.api?.ai?.interrupt?.().catch(() => {})
+      busyRef.current = false
+      setBusy(false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: 'Interrupted.',
+          actionSuccess: false,
+          at: Date.now()
+        }
+      ])
+    }
+  }, [speaking, stopSpeaking, listening, stopListening])
 
   const send = useCallback(
     async (text: string): Promise<void> => {
@@ -261,6 +288,7 @@ export function OrbApp(): React.JSX.Element {
   useEffect(() => {
     const onDown = (e: MouseEvent): void => {
       if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) setModelOpen(false)
+      setShowContextMenu(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -271,20 +299,33 @@ export function OrbApp(): React.JSX.Element {
     setOpen(next)
     setError(null)
     setModelOpen(false)
+    setShowContextMenu(false)
     void window.api?.orb?.setPanelOpen(next)
     if (next) window.setTimeout(() => inputRef.current?.focus(), 60)
   }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && open) {
-        e.preventDefault()
-        setPanelOpen(false)
+      if (e.key === 'Escape') {
+        if (showContextMenu) {
+          e.preventDefault()
+          setShowContextMenu(false)
+          return
+        }
+        if (busy || speaking || listening) {
+          e.preventDefault()
+          interrupt()
+          return
+        }
+        if (open) {
+          e.preventDefault()
+          setPanelOpen(false)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, setPanelOpen])
+  }, [open, setPanelOpen, busy, speaking, listening, interrupt, showContextMenu])
 
   // A renderer reload must not leave the window stuck at panel size.
   useEffect(() => {
@@ -321,12 +362,12 @@ export function OrbApp(): React.JSX.Element {
   }, [speaking, busy])
 
   // --- dragging ----------------------------------------------------------
-  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>): void => {
+  const onPointerDown = (e: React.PointerEvent<HTMLElement>): void => {
     if (open) return
     drag.current = { id: e.pointerId, lastX: e.screenX, lastY: e.screenY, moved: 0 }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
-  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>): void => {
+  const onPointerMove = (e: React.PointerEvent<HTMLElement>): void => {
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
     const dx = e.screenX - d.lastX
@@ -336,7 +377,7 @@ export function OrbApp(): React.JSX.Element {
     d.moved += Math.abs(dx) + Math.abs(dy)
     if (dx || dy) void window.api?.orb?.moveBy(dx, dy)
   }
-  const onPointerUp = (_e: React.PointerEvent<HTMLButtonElement>): void => {
+  const onPointerUp = (_e: React.PointerEvent<HTMLElement>): void => {
     const d = drag.current
     drag.current = null
     if (!d) return
@@ -408,11 +449,19 @@ export function OrbApp(): React.JSX.Element {
             : 'idle'
   const stateLabel = STATE_LABEL[orbState]
 
+  const petModeState: PetModeState =
+    speaking
+      ? 'speaking'
+      : (listening || (alwaysListening && micState !== 'idle') || orbState === 'listening')
+        ? 'listening'
+        : 'idle'
+
   const statusLabel = useMemo(() => {
     if (model === 'gemini') return hasGoogleKey ? 'Gemini ready' : 'Gemini — add a key'
     if (!status) return 'Connecting'
     if (!status.running) return 'Ollama offline'
-    return status.modelReady ? 'Ready' : 'Model not pulled'
+    const modelTag = status.activeModel || 'qwen2.5-coder:1.5b'
+    return status.modelReady ? `Ready (${modelTag})` : `Model not pulled (${modelTag})`
   }, [model, hasGoogleKey, status])
 
   const voiceAvailable = voiceSupported || hasGoogleKey
@@ -420,11 +469,59 @@ export function OrbApp(): React.JSX.Element {
   // --- collapsed orb -----------------------------------------------------
   if (!open) {
     return (
-      <div className="pet-root flex h-full w-full flex-col items-center justify-center" data-accent={accent}>
-        <button
-          type="button"
-          aria-label={`FlameAGI companion — ${stateLabel}. Drag to move, click to open.`}
-          title={`FlameAGI — ${stateLabel}. Drag to move, click to open.`}
+      <div className="pet-root relative flex h-full w-full flex-col items-center justify-center" data-accent={accent}>
+        {/* Quick Close Pet Mode on hover */}
+        {hovered && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              void window.api?.orb?.disable()
+            }}
+            title="Close Pet Mode"
+            aria-label="Close Pet Mode"
+            className="absolute top-2 right-2 z-30 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-white/80 ring-1 ring-white/20 transition-all hover:bg-red-600 hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Right-click context menu */}
+        {showContextMenu && (
+          <div
+            className="absolute z-40 top-3 left-3 w-36 rounded-lg border border-white/10 bg-[#12151a]/95 p-1 text-xs shadow-2xl backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-white hover:bg-white/10"
+              onClick={() => {
+                setShowContextMenu(false)
+                void window.api?.orb?.openMain()
+              }}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" /> Open FlameAGI
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-red-300 hover:bg-red-500/20"
+              onClick={() => {
+                setShowContextMenu(false)
+                void window.api?.orb?.disable()
+              }}
+            >
+              <X className="h-3.5 w-3.5" /> Close Pet Mode
+            </button>
+          </div>
+        )}
+
+        <div
+          aria-label={`FlameAGI companion — ${stateLabel}. Drag to move, click to open. Right click for options.`}
+          title={`FlameAGI — ${stateLabel}. Drag to move, click to open. Right click for options.`}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setShowContextMenu((v) => !v)
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -436,43 +533,32 @@ export function OrbApp(): React.JSX.Element {
           onFocus={() => setHovered(true)}
           onBlur={() => setHovered(false)}
           className={cn(
-            'relative flex h-[120px] w-[120px] items-center justify-center rounded-full outline-none',
+            'relative flex flex-col items-center justify-center outline-none cursor-pointer',
             'transition-transform duration-150 ease-out',
             hovered && 'scale-105'
           )}
         >
           <span className="pet-halo" />
-          <div className={cn('pet-stage', `pet-state-${orbState}`)}>
-            <FlamePet className="pet-svg" talking={speaking || orbState === 'processing'} />
-          </div>
-        </button>
-        {/* Idle check-in. Sits between the pet and the mic so it never
-            pushes the button around. */}
-        <p
-          className={cn(
-            'mt-1 h-4 max-w-[140px] px-1 text-center text-[10px] leading-4 text-white',
-            'transition-opacity duration-300',
-            nudge ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          {nudge ?? ''}
-        </p>
-        {/* Push-to-talk, so the pet can be talked to without opening the panel. */}
-        <button
-          type="button"
-          onClick={toggleMic}
-          aria-pressed={listening}
-          aria-label={listening ? 'Stop talking to Flame' : 'Talk to Flame'}
-          title={listening ? 'Listening…' : 'Talk to Flame'}
-          className={cn(
-            'mt-1 flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-            listening
-              ? 'bg-white/25 text-white ring-1 ring-inset ring-white/70'
-              : 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20'
-          )}
-        >
-          {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
+          <BlackFlamePet
+            state={petModeState}
+            size={112}
+            onToggleMic={toggleMic}
+            onTriggerAgentMode={() => {
+              void window.api?.orb?.openMain()
+            }}
+          />
+        </div>
+        {/* Idle check-in */}
+        {nudge && (
+          <p
+            className={cn(
+              'mt-1 h-4 max-w-[140px] px-1 text-center text-[10px] leading-4 text-white',
+              'transition-opacity duration-300'
+            )}
+          >
+            {nudge}
+          </p>
+        )}
       </div>
     )
   }
@@ -484,9 +570,7 @@ export function OrbApp(): React.JSX.Element {
       data-accent={accent}
     >
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-2.5">
-        <div className={cn('pet-stage pet-stage--sm', `pet-state-${orbState}`)}>
-          <FlamePet compact className="pet-svg" talking={speaking || orbState === 'processing'} />
-        </div>
+        <FlameIcon size={24} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold leading-tight">FlameAGI</p>
           <p className="truncate text-[10px] leading-tight text-white">{statusLabel}</p>
@@ -525,6 +609,15 @@ export function OrbApp(): React.JSX.Element {
         >
           <Minus className="h-4 w-4" />
         </button>
+        <button
+          type="button"
+          onClick={() => void window.api?.orb?.disable()}
+          title="Close Pet Mode"
+          aria-label="Close Pet Mode"
+          className="rounded-md p-1.5 text-white/70 transition-colors hover:bg-red-500/20 hover:text-red-400"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </header>
 
       <div ref={scrollRef} data-selectable className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
@@ -539,7 +632,7 @@ export function OrbApp(): React.JSX.Element {
         ))}
         {busy && (
           <p className="flex items-center gap-1.5 text-[11px] text-white">
-            <Loader2 className="h-3 w-3 animate-spin" /> Flame is working…
+            <Loader2 className="h-3 w-3 animate-spin" /> Flame is working… <span className="opacity-60 text-[10px]">(Esc to interrupt)</span>
           </p>
         )}
       </div>
@@ -652,15 +745,27 @@ export function OrbApp(): React.JSX.Element {
             }}
             className="max-h-24 min-h-[34px] w-full flex-1 resize-none rounded-lg bg-white/5 px-2.5 py-2 text-sm text-white placeholder:text-white focus:outline-none focus:ring-1 focus:ring-white/25 disabled:bg-white/[0.02]"
           />
-          <button
-            type="submit"
-            disabled={!draft.trim() || busy}
-            aria-label="Send to Flame"
-            title="Send"
-            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-white/25 text-white ring-1 ring-inset ring-white/60 transition-colors hover:bg-white/35 disabled:bg-white/10 disabled:ring-white/20"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          {busy ? (
+            <button
+              type="button"
+              onClick={interrupt}
+              aria-label="Interrupt Flame"
+              title="Interrupt Flame (Esc)"
+              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-red-500/30 text-white ring-1 ring-inset ring-red-400/50 transition-colors hover:bg-red-500/50"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!draft.trim() || busy}
+              aria-label="Send to Flame"
+              title="Send"
+              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-white/25 text-white ring-1 ring-inset ring-white/60 transition-colors hover:bg-white/35 disabled:bg-white/10 disabled:ring-white/20"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
         </form>
       </div>
     </div>

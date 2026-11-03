@@ -1,16 +1,31 @@
-node_modules
-out
-dist
-dist-electron
-release
+node_modules/
+out/
+dist/
+dist-electron/
+release/
 .DS_Store
 *.log
+run_error.txt
+
+# Environment and sensitive credentials
 .env
 .env.local
+.env.*.local
+keys.json
 
 # TypeScript incremental build cache
 *.tsbuildinfo
 
-# Byte-identical copy of ../coder_engine.py kept as a reference snapshot.
-# The live engine is ../coder_engine.py; this one only bloats the tree.
+# FlameAGI runtime state, logs, and caches
+.flame/state/
+.flame/runs/
+.flame/logs/
+.flame/tasks/
+.flame/assets/
+.flame/whatsapp_media/
+.flame/whatsapp_auth/
+.flame/whatsapp_auth_baileys/
+.flame/*.lock
+
+# Temporary reference files
 FLAME_HANDOFF.md

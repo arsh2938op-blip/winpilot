@@ -41,7 +41,9 @@ export function createMainWindow(): BrowserWindow {
     // frame and drop shadow, so the window stays user-resizable.
     transparent: true,
     backgroundColor: '#00000000',
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: process.platform === 'win32'
+      ? join(__dirname, '../../resources/icon.ico')
+      : join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

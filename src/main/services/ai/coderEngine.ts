@@ -1,11 +1,11 @@
 import { app } from 'electron'
-import { execFile } from 'child_process'
+import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { emitAgentActivity } from '../../utils/broadcast'
 
 /**
- * Bridge to the FlameAGI Coder Engine (coder_engine.py v1.2.0) — the guarded
+ * Bridge to the FlameAGI Coder Engine (coder_engine.py v1.2.1) — the guarded
  * wrapper around OpenCode. Every code change made through chat goes through
  * this engine, so it always gets the engine's protections for free:
  *   - .bak snapshots in .flame/runs/<run_id>/ for one-command rollback
@@ -138,8 +138,9 @@ async function resolvePython(): Promise<string> {
   if (cachedPython) return cachedPython
   for (const exe of ['python', 'py']) {
     const works = await new Promise<boolean>((resolve) => {
-      const child = execFile(exe, ['--version'], { windowsHide: true }, (err) => resolve(!err))
-      child.stdin?.end()
+      const child = spawn(exe, ['--version'], { windowsHide: true })
+      child.on('error', () => resolve(false))
+      child.on('close', (code) => resolve(code === 0))
     })
     if (works) {
       cachedPython = exe
@@ -149,35 +150,108 @@ async function resolvePython(): Promise<string> {
   throw new Error('Python was not found on PATH — the Coder Engine needs it (python or py).')
 }
 
-/** execFile wrapper that resolves on ANY exit code (engine reports failures
- * as valid JSON with status "failed") and pipes `input` to stdin, so task
- * text never meets a shell. runCommand() can't do either, hence this helper.
- * Callers must resolvePython() first — no spawn retry here. */
+let activeEngineChild: ReturnType<typeof spawn> | null = null
+
+export function interruptCoderEngine(): void {
+  if (activeEngineChild && !activeEngineChild.killed) {
+    try {
+      activeEngineChild.kill('SIGTERM')
+    } catch {
+      // ignore
+    }
+    activeEngineChild = null
+  }
+}
+
+/** Spawn wrapper that streams subprocess outputs line-by-line in real time instead of buffering.
+ * Progress markers (e.g., `::: running command:...`, `::: verifying syntax...`) are intercepted
+ * and emitted as live activity events.
+ * Resolves on ANY exit code (engine reports failures as valid JSON with status "failed"). */
 function execEngine(
   args: string[],
   cwd: string,
   input: string,
-  timeoutMs: number
+  timeoutMs: number,
+  requestId?: string
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    execFile(
-      args[0],
-      args.slice(1),
-      { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' },
-      (error, stdout, stderr) => {
-        if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-          reject(new Error(`Could not start '${args[0]}'.`))
-          return
-        }
-        if (error && (error as Error & { killed?: boolean }).killed) {
-          reject(new Error(`Coder Engine timed out after ${Math.round(timeoutMs / 60_000)} min.`))
-          return
-        }
-        const errno = error ? (error as unknown as { code?: number | string }).code : undefined
-        const code = typeof errno === 'number' ? errno : error ? 1 : 0
-        resolve({ stdout: stdout ?? '', stderr: stderr ?? '', code })
+    let stdoutBuffer = ''
+    let stderrBuffer = ''
+    let timedOut = false
+
+    const child = spawn(args[0], args.slice(1), {
+      cwd: cwd || undefined,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    activeEngineChild = child
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      if (activeEngineChild === child) activeEngineChild = null
+      reject(new Error(`Coder Engine timed out after ${Math.round(timeoutMs / 60_000)} min.`))
+    }, timeoutMs)
+
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      if (activeEngineChild === child) activeEngineChild = null
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(new Error(`Could not start '${args[0]}'.`))
+      } else {
+        reject(err)
       }
-    ).stdin?.end(input, 'utf8')
+    })
+
+    let stdoutLineRemainder = ''
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdoutBuffer += chunk
+      stdoutLineRemainder += chunk
+      const lines = stdoutLineRemainder.split(/\r?\n/)
+      stdoutLineRemainder = lines.pop() ?? ''
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        if (trimmed.startsWith(':::')) {
+          emitAgentActivity(requestId, trimmed)
+        }
+      }
+    })
+
+    let stderrLineRemainder = ''
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk: string) => {
+      stderrBuffer += chunk
+      stderrLineRemainder += chunk
+      const lines = stderrLineRemainder.split(/\r?\n/)
+      stderrLineRemainder = lines.pop() ?? ''
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        if (trimmed.startsWith(':::')) {
+          emitAgentActivity(requestId, trimmed)
+        } else {
+          emitAgentActivity(requestId, `[Coder] ${trimmed}`)
+        }
+      }
+    })
+
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (activeEngineChild === child) activeEngineChild = null
+      if (timedOut) return
+      resolve({
+        stdout: stdoutBuffer,
+        stderr: stderrBuffer,
+        code: code ?? 0
+      })
+    })
+
+    if (input) {
+      child.stdin.write(input, 'utf8')
+    }
+    child.stdin.end()
   })
 }
 
@@ -189,7 +263,8 @@ async function engineJson<T>(
   rawArgs: string[],
   projectPath: string | undefined,
   input = '',
-  timeoutMs = RUN_TIMEOUT_MS
+  timeoutMs = RUN_TIMEOUT_MS,
+  requestId?: string
 ): Promise<T> {
   const enginePy = await findCoderEngine(projectPath)
   const python = await resolvePython()
@@ -197,7 +272,7 @@ async function engineJson<T>(
   // --workspace is a top-level flag in the engine CLI: it must come before the subcommand
   if (projectPath) args.push('--workspace', path.resolve(projectPath))
   args.push(...rawArgs)
-  const { stdout } = await execEngine(args, projectPath ? path.resolve(projectPath) : '', input, timeoutMs)
+  const { stdout } = await execEngine(args, projectPath ? path.resolve(projectPath) : '', input, timeoutMs, requestId)
 
   let parsed: unknown
   try {
@@ -239,7 +314,7 @@ export async function runCoderTask(task: string, projectPath: string, options: C
   if (options.files?.length) args.push('--files', ...options.files)
 
   emitAgentActivity(requestId, options.review ? '[Coder Engine] Staging proposal' : '[Coder Engine] Editing code (OpenCode)')
-  const result = await engineJson<CoderRunResult>(args, projectPath, task)
+  const result = await engineJson<CoderRunResult>(args, projectPath, task, RUN_TIMEOUT_MS, requestId)
   if (!result.files) result.files = []
   emitAgentActivity(requestId, result.error ? '[Coder Engine] Failed' : '[Coder Engine] Done')
   return result
@@ -255,9 +330,9 @@ export async function coderApproval(
 ): Promise<CoderRunResult> {
   emitAgentActivity(requestId, `[Coder Engine] ${command}`)
   if (runId) {
-    return engineJson<CoderRunResult>([command, runId], projectPath, '', FAST_TIMEOUT_MS)
+    return engineJson<CoderRunResult>([command, runId], projectPath, '', FAST_TIMEOUT_MS, requestId)
   }
-  return engineJson<CoderRunResult>([command], projectPath, '', FAST_TIMEOUT_MS)
+  return engineJson<CoderRunResult>([command], projectPath, '', FAST_TIMEOUT_MS, requestId)
 }
 
 export async function coderListRuns(projectPath?: string): Promise<CoderRunEntry[]> {
@@ -281,7 +356,7 @@ export async function coderOpenDiff(runId: string | undefined, projectPath?: str
   emitAgentActivity(requestId, '[Coder Engine] Opening diff in VS Code')
   const id = runId ?? (await coderListRuns(projectPath))[0]?.run_id
   if (!id) throw new Error('There is no run yet — ask me to change some code first.')
-  await engineJson<Record<string, unknown>>(['diff', id], projectPath, '', FAST_TIMEOUT_MS)
+  await engineJson<Record<string, unknown>>(['diff', id], projectPath, '', FAST_TIMEOUT_MS, requestId)
 }
 
 /* ------------------------------------------------------------------ */

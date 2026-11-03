@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
@@ -10,16 +11,14 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   loading?: boolean
   destructive?: boolean
+  children?: ReactNode
   onConfirm: () => void
 }
 
 /**
- * Reusable confirmation dialog for anything destructive or system-changing
+ * Reusable confirmation dialog for system-changing operations
  * — per the project's core safety rule ("always ask for confirmation
- * before deleting files, uninstalling software, changing important
- * settings, running admin commands"). Winget uninstall is the first user,
- * but Windows Controls and future features should reuse this too rather
- * than each building their own confirm UI.
+ * before installing, updating, uninstalling software, or deleting files").
  */
 export function ConfirmDialog({
   open,
@@ -29,6 +28,7 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   loading = false,
   destructive = false,
+  children,
   onConfirm
 }: ConfirmDialogProps): React.JSX.Element {
   return (
@@ -51,6 +51,8 @@ export function ConfirmDialog({
               </Dialog.Description>
             </div>
           </div>
+
+          {children && <div className="mt-3">{children}</div>}
 
           <div className="mt-5 flex justify-end gap-2">
             <Dialog.Close asChild>

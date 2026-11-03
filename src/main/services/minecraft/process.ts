@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { broadcastToRenderer } from '../../utils/broadcast'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { MinecraftConfig, MinecraftStatus } from '@shared/types'
+import { getUserProfile } from '../profile/userProfileStore'
 
 let child: ChildProcess | null = null
 let status: MinecraftStatus = { state: 'offline', bots: [], serverOnline: false, mindserverOnline: false }
@@ -44,18 +45,19 @@ function handleLine(line: string): void {
     setStatus({ serverOnline: true })
     return
   }
-  if (line.includes('All bots launched')) {
+  if (line.includes('All bots launched') || line.includes('logged in!') || line.includes('spawned.') || line.includes('Mindcraft initialized in headless')) {
     setStatus({ state: 'online' })
   }
 }
 
-export function startMindCraft(projectPath: string, config: MinecraftConfig): { success: boolean; message: string } {
+export async function startMindCraft(projectPath: string, config: MinecraftConfig): Promise<{ success: boolean; message: string }> {
   if (isMinecraftRunning()) return { success: false, message: 'Already running.' }
 
   setStatus({ state: 'starting', bots: [], serverOnline: false, mindserverOnline: false })
   log('[FlameAGI] Starting MindCraft…')
 
   try {
+    const userProfile = await getUserProfile()
     const yn = (b: boolean): string => (b ? 'Y' : 'N')
     // PowerShell routing — same proven pattern as Claude Code. No user
     // text is interpolated here at all (only a fixed script path), so
@@ -79,7 +81,10 @@ export function startMindCraft(projectPath: string, config: MinecraftConfig): { 
         OWNERSHIP: yn(config.ownership),
         ESSENTIALS: yn(config.essentials),
         MINDSERVER_PORT: String(config.mindserverPort),
-        AUTO_OPEN_UI: config.autoOpenUi ? 'true' : 'false'
+        AUTO_OPEN_UI: config.autoOpenUi ? 'true' : 'false',
+        AUTHORIZED_USERS: `${userProfile.username},${userProfile.nickname},Emperorop7528`,
+        LEADER: `${userProfile.nickname},Emperorop7528`,
+        BOT_OWNER: userProfile.nickname || 'Arsh'
       }
     })
     child.stdin?.end()

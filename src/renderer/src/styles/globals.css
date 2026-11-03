@@ -451,3 +451,33 @@ html[data-surface='orb'] .pet-root * {
   --accent-foreground: 213 40% 82%;
   --ring: 213 30% 62%;
 }
+
+
+/* Cyber-amber Flame Agent Mode Pulse & Glow */
+@keyframes flame-cyber-pulse {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.22), inset 0 0 15px rgba(245, 158, 11, 0.06);
+    border-color: rgba(245, 158, 11, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(245, 158, 11, 0.48), inset 0 0 24px rgba(245, 158, 11, 0.16);
+    border-color: rgba(245, 158, 11, 0.85);
+  }
+}
+
+@keyframes flame-cyber-border {
+  0%, 100% {
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    border-color: rgba(249, 115, 22, 0.9);
+  }
+}
+
+.agent-mode-pulse {
+  animation: flame-cyber-pulse 2.8s ease-in-out infinite;
+}
+
+.agent-mode-border {
+  animation: flame-cyber-border 2.4s ease-in-out infinite;
+}

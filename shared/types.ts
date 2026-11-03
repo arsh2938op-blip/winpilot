@@ -6,19 +6,29 @@
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+export interface UserProfile {
+  nickname: string
+  username: string
+  preferred_ai_tone: string
+}
+
 export interface PlatformInfo {
   osVersion: string
   arch: string
   appVersion: string
 }
 
-// TODO: Winget Manager — flesh out once the feature is implemented.
+// Winget Manager
 export interface WingetPackage {
   id: string
   name: string
   version: string
   availableVersion?: string
   source: string
+  icon?: string
+  description?: string
+  publisher?: string
+  homepage?: string
 }
 
 export type WingetActionStatus = 'idle' | 'running' | 'success' | 'error'
@@ -30,7 +40,7 @@ export interface WingetProgressEvent {
   percent?: number
 }
 
-// TODO: Dashboard — system metrics snapshot.
+// System telemetry snapshot
 export interface SystemSnapshot {
   cpuPercent: number
   ramPercent: number
@@ -43,26 +53,73 @@ export interface SystemSnapshot {
   networkUpKbps?: number
 }
 
-// TODO: Windows Controls — toggleable system features.
-export type WindowsControlId =
-  | 'bluetooth'
-  | 'wifi'
-  | 'darkMode'
-  | 'notifications'
-  | 'gameMode'
+/* ------------------------------------------------------------------ */
+/* Combos Automation Engine                                           */
+/* ------------------------------------------------------------------ */
 
-export interface WindowsControlState {
-  id: WindowsControlId
-  label: string
-  enabled: boolean
+export type ComboActionType =
+  | 'launch_app'
+  | 'focus_window'
+  | 'command'
+  | 'system_command'
+  | 'wait'
+
+export type SpecialSystemCommand =
+  | 'close yourself'
+  | 'close flame'
+  | 'close pet mode'
+
+export interface ComboStep {
+  id: string
+  action: ComboActionType
+  target: string
+  description?: string
+  waitMsAfter?: number
 }
 
-// TODO: AI Assistant — the AI decides WHAT the user wants (intent),
-// the app decides HOW to execute it. This shape is a placeholder for
-// that contract.
+export interface Combo {
+  id: string
+  name: string
+  description?: string
+  toDo?: string
+  steps: ComboStep[]
+  createdAt: number
+  updatedAt: number
+  lastRunAt?: number
+}
+
+export interface ComboStepExecutionResult {
+  stepId: string
+  action: ComboActionType
+  target: string
+  success: boolean
+  message: string
+}
+
+export interface ComboRunResult {
+  comboId: string
+  comboName: string
+  success: boolean
+  message: string
+  stepsExecuted: ComboStepExecutionResult[]
+}
+
+export interface ComboProgressEvent {
+  comboId: string
+  stepIndex: number
+  totalSteps: number
+  stepTarget: string
+  status: 'running' | 'success' | 'error'
+  message: string
+}
+
+// AI Assistant intent contract
 export type AiIntentType =
   | 'launch_app'
   | 'install_app'
+  | 'update_app'
+  | 'uninstall_app'
+  | 'run_combo'
   | 'update_app'
   | 'uninstall_app'
   | 'external_action'
@@ -77,6 +134,7 @@ export type AiIntentType =
   | 'generate_prompt'
   | 'rsi_improve'
   | 'code_edit'
+  | 'osint'
   | 'unknown'
 
 export type AiNetworkTarget = 'gemini' | 'opencode'
@@ -117,9 +175,127 @@ export interface DebateEndedEvent {
   at: number
 }
 
+export interface SkillUnlockedEvent {
+  featureName: string
+  at: number
+}
+
+export interface AgentStatusEvent {
+  status: 'idle' | 'ready' | 'coding' | string
+  message: string
+  at: number
+}
+
 export interface AiNetworkStatus {
   ollama: { running: boolean; modelReady: boolean }
   gemini: { configured: boolean; keyCount: number }
+}
+
+/* ------------------------------------------------------------------ */
+/* Unified chat / task modes                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Chat  = conversational desktop assistant (local Ollama / Gemini).
+ * Task  = agentic coding mode, routed through the Coder Engine with
+ *         snapshots, AST guards and optional OpenCode HTTP transport.
+ */
+export type ChatMode = 'chat' | 'task'
+
+/* ------------------------------------------------------------------ */
+/* AI Network — user-editable endpoint federation                      */
+/* ------------------------------------------------------------------ */
+
+export type AiEndpointKind = 'gemini' | 'ollama' | 'opencode'
+export type AiEndpointRole = 'chat' | 'triage' | 'coding' | 'reasoning'
+export type OpenCodeTransport = 'auto' | 'http' | 'cli'
+
+/**
+ * One collaborator in the AI Network. Everything here is read from
+ * `.flame/coder_config.json` — no endpoint is hardcoded in the UI or in
+ * the router. Keys themselves stay in the encrypted-by-OS secrets file;
+ * this only stores the env var name that holds a key.
+ */
+export interface AiNetworkEndpoint {
+  id: string
+  label: string
+  kind: AiEndpointKind
+  enabled: boolean
+  baseUrl: string
+  model: string
+  roles: AiEndpointRole[]
+  priority: number
+  transport?: OpenCodeTransport
+  endpointPath?: string
+  apiKeyEnv?: string
+  /** CLI command for the OpenCode endpoint, e.g. ['opencode','run','{task}']. */
+  command?: string[] | string
+}
+
+export interface AiNetworkRouting {
+  chat: string[]
+  task: string[]
+}
+
+export interface AiNetworkGuards {
+  ast: boolean
+  maxFilesPerRun: number
+  protectedGlobs: string[]
+  allowElectronInRenderer: boolean
+}
+
+export interface AiNetworkConfig {
+  version: number
+  endpoints: AiNetworkEndpoint[]
+  routing: AiNetworkRouting
+  guards: AiNetworkGuards
+  /** Absolute path of the `.flame/coder_config.json` that was read. */
+  configPath: string
+}
+
+export interface AiNetworkEndpointState {
+  id: string
+  label: string
+  kind: AiEndpointKind
+  enabled: boolean
+  online: boolean
+  detail: string
+  model: string
+  roles: AiEndpointRole[]
+}
+
+export interface AiNetworkSnapshot {
+  config: AiNetworkConfig
+  endpoints: AiNetworkEndpointState[]
+  /** True when the active chat mode is 'task' in at least one window. */
+  taskMode: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/* Native coder runs (Task mode)                                       */
+/* ------------------------------------------------------------------ */
+
+export type TaskRunStatus = 'applied' | 'rolled_back' | 'failed' | 'noop' | 'answered'
+
+export interface TaskRunFileChange {
+  path: string
+  action: 'create' | 'modify' | 'delete'
+  added?: number
+  removed?: number
+  check?: string
+}
+
+export interface TaskRunResult {
+  runId: string
+  status: TaskRunStatus
+  backend: string
+  summary: string
+  files: TaskRunFileChange[]
+  warnings: string[]
+  error?: string
+  answer?: string
+  startedAt: number
+  finishedAt: number
 }
 
 export interface ProjectPermissions {
@@ -208,17 +384,20 @@ export interface WhatsAppContact {
   phoneNumber: string
 }
 /**
- * Uninstall is destructive, so the AI never executes it directly — it
- * hands back a pending action instead. The renderer shows a Confirm/
- * Cancel prompt in the chat itself, and only calls the real uninstall IPC
- * if the user confirms.
+ * Actions that modify the system (install, update, uninstall, file operations)
+ * require user confirmation. The assistant hands back a pending action,
+ * the renderer displays a confirmation dialog/card, and only executes
+ * if the user approves.
  */
 export interface AiPendingAction {
-  type: 'uninstall' | 'fileOperation'
+  type: 'uninstall' | 'install' | 'update' | 'fileOperation' | 'selfHeal'
   packageId?: string
   packageName?: string
   operationId?: string
   operationLabel?: string
+  icon?: string
+  runId?: string
+  healHash?: string
 }
 
 export interface AiResponse {
@@ -228,11 +407,38 @@ export interface AiResponse {
   actionSuccess?: boolean
   pendingAction?: AiPendingAction
   promptArtifact?: { forTool: string; prompt: string }
+  /** Which mode produced this reply (Chat vs Task). */
+  mode?: ChatMode
+  /** Structured coder-run details when Task mode edited code. */
+  task?: TaskRunResult
+  /** Generated image metadata if image generation occurred */
+  generatedImage?: {
+    dataUri?: string
+    filePath?: string
+    prompt: string
+    fileName?: string
+  }
+  /** Multiple images or screenshots returned by tools, media, or attachments */
+  images?: Array<{
+    src: string
+    caption?: string
+    filePath?: string
+    fileName?: string
+  }>
 }
 
 export interface AiStatus {
   running: boolean
   modelReady: boolean
+  status?: 'idle' | 'ready' | 'coding' | string
+  message?: string
+  activeModel?: string
+}
+
+export interface ModelConfig {
+  localModel: string
+  cloudModel: string
+  localKeepAlive?: string
 }
 
 /* ---- Floating orb companion ----
@@ -274,4 +480,285 @@ export interface OrbWindowState {
    * the shared on/off preference both surfaces agree on.
    */
   alwaysListening: boolean
+}
+
+/* ---- Chess Director & 2-Player Multi-API Arena ---- */
+
+export type ChessGameMode = 'human_vs_ai' | 'ai_vs_ai'
+
+export interface ChessPlayerProfile {
+  slot: 'player_1' | 'player_2'
+  color: 'White' | 'Black'
+  display_name: string
+  type: 'human' | 'ai'
+  ai_profile: string
+  avatar: string
+  title: string
+}
+
+export interface ChessApiProfile {
+  name: string
+  provider: 'gemini' | 'ollama' | 'openai' | 'anthropic' | string
+  model: string
+  endpoint: string
+  api_key_masked?: string
+}
+
+export interface ChessPlayersState {
+  game_mode: ChessGameMode
+  player_1: ChessPlayerProfile
+  player_2: ChessPlayerProfile
+  available_api_profiles: ChessApiProfile[]
+}
+
+export interface ChessPieceCoord {
+  square: string
+  symbol: string
+  piece: string
+  unicode?: string
+  points?: number
+}
+export type ChessPiece = ChessPieceCoord
+
+export interface ChessMaterialInfo {
+  captured_by_white: string[]
+  captured_by_black: string[]
+  white_points: number
+  black_points: number
+  net_white_advantage: number
+}
+
+export interface ChessLegalMoveDetail {
+  uci: string
+  san: string
+  from: string
+  to: string
+  piece: string
+  is_capture: boolean
+  is_castling: boolean
+  promotion: string | null
+}
+export type ChessMoveDetail = ChessLegalMoveDetail
+
+export interface ChessGameStatus {
+  status: 'active' | 'checkmate' | 'stalemate' | 'draw_50_moves' | string
+  is_game_over: boolean
+  turn?: 'White' | 'Black' | string
+  winner?: 'White' | 'Black' | string | null
+  message?: string
+  fullmove?: number
+  legal_move_count?: number
+}
+
+export interface ChessPositionTelemetry {
+  active_turn: 'White' | 'Black' | string
+  turn_code: 'w' | 'b' | string
+  fullmove_number: number
+  fen: string
+  castling_rights: string
+  en_passant_target: string
+  white_pieces: ChessPieceCoord[]
+  black_pieces: ChessPieceCoord[]
+  occupied_squares: Record<string, string>
+  material?: ChessMaterialInfo
+  last_move?: { uci: string; san: string; from: string; to: string } | null
+  legal_moves_count: number
+  legal_moves_uci: string[]
+  legal_moves_san: string[]
+  legal_moves_detailed: ChessLegalMoveDetail[]
+  move_history_uci: string[]
+  board_visual: string
+  game_status?: ChessGameStatus
+  ui_king_in_check_square?: string | null
+}
+
+export interface ChessMoveClassification {
+  move_number: number
+  player: 'White' | 'Black' | string
+  move_uci: string
+  move_san: string
+  from?: string
+  to?: string
+  classification:
+    | 'Brilliant'
+    | 'Great'
+    | 'Best'
+    | 'Book'
+    | 'Excellent'
+    | 'Good'
+    | 'Inaccuracy'
+    | 'Mistake'
+    | 'Miss'
+    | 'Blunder'
+    | string
+  symbol: string
+  color_hex: string
+  cp_loss: number
+  eval_before_cp?: number
+  eval_after_cp?: number
+  eval_pawns: number
+  move_accuracy_pct: number
+  best_move_was: string
+  explanation: string
+}
+
+export interface ChessSideReview {
+  accuracy_pct: number
+  counts: Record<string, number>
+  avg_cp_loss: number
+}
+
+export interface ChessGameReview {
+  White: ChessSideReview
+  Black: ChessSideReview
+  total_moves_graded: number
+  recent_moves: ChessMoveClassification[]
+  all_moves?: ChessMoveClassification[]
+}
+
+export interface ChessArenaState {
+  telemetry: ChessPositionTelemetry
+  review: ChessGameReview
+  players_state: ChessPlayersState
+  ui_king_in_check_square: string | null
+}
+
+export interface ChessMoveResult {
+  move_played: string
+  uci: string
+  move_classification: ChessMoveClassification
+  game_status: ChessGameStatus
+  next_player_telemetry: ChessPositionTelemetry
+}
+
+export interface ChessMatchTurn {
+  ply: number
+  player: string
+  profile: string
+  move: string
+  classification: string
+  eval_pawns: number
+  reasoning: string
+}
+
+export interface ChessMatchResult {
+  match_Active: string
+  ply_executed: number
+  turns: ChessMatchTurn[]
+  game_review: ChessGameReview
+  final_fen: string
+  game_status: {
+    is_game_over: boolean
+    message?: string
+  }
+  board_ascii: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Due Messages / Deferred Task Tracker                               */
+/* ------------------------------------------------------------------ */
+
+export type DueMessageStatus = 'pending' | 'completed' | 'dismissed'
+
+export interface DueMessage {
+  id: string
+  title: string
+  content?: string
+  dueAt?: number
+  dueHint?: string
+  workspaceContext?: string
+  tags?: string[]
+  status: DueMessageStatus
+  createdAt: number
+  updatedAt: number
+  completedAt?: number
+  dismissedAt?: number
+}
+
+export interface CreateDueMessageInput {
+  title: string
+  content?: string
+  dueAt?: number
+  dueHint?: string
+  workspaceContext?: string
+  tags?: string[]
+}
+
+/* ------------------------------------------------------------------ */
+/* Dynamic Plugin Registry & Toggles                                  */
+/* ------------------------------------------------------------------ */
+
+export type FlamePluginCategory = 'system' | 'analysis' | 'ai' | 'developer' | 'tools' | 'communication'
+
+export interface FlamePluginMeta {
+  id: string
+  name: string
+  description: string
+  category: FlamePluginCategory
+  enabled: boolean
+  capabilities: string[]
+  links?: { label: string; to: string }[]
+  subSections?: { name: string; description?: string; status?: string; to: string }[]
+}
+
+/* ------------------------------------------------------------------ */
+/* Image Generation                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface ImageGenerationOptions {
+  prompt: string
+  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4'
+  sampleCount?: number
+  outputFormat?: 'image/jpeg' | 'image/png'
+}
+
+export interface GeneratedImageResult {
+  success: boolean
+  message: string
+  prompt: string
+  filePath?: string
+  fileName?: string
+  dataUri?: string
+  aspectRatio?: string
+  createdAt: number
+  error?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Model Context Protocol (MCP)                                       */
+/* ------------------------------------------------------------------ */
+
+export interface McpServerStatus {
+  id: string
+  name: string
+  running: boolean
+  toolCount: number
+  tools: string[]
+  error?: string
+  pid?: number | null
+}
+
+/* ------------------------------------------------------------------ */
+/* Error Guardian                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface ErrorGuardianIncident {
+  hash: string
+  errorMessage: string
+  stack?: string
+  timestamp: number
+  circuitBroken?: boolean
+  proposal?: unknown
+}
+
+export interface HealProposalPayload {
+  hash: string
+  errorMessage: string
+  timestamp: number
+  proposal: {
+    run_id?: string
+    status: string
+    files: Array<{ path: string; action: string; added?: number; removed?: number }>
+    summary?: string
+  }
 }

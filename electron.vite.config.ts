@@ -60,6 +60,18 @@ export default defineConfig({
       alias: {
         '@shared': resolve('shared')
       }
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          'mcp/servers/computerUseServer': resolve('src/main/mcp/servers/computerUseServer.ts'),
+          'mcp/servers/browserServer': resolve('src/main/mcp/servers/browserServer.ts'),
+          'mcp/servers/fileSystemServer': resolve('src/main/mcp/servers/fileSystemServer.ts'),
+          'mcp/servers/osControlServer': resolve('src/main/mcp/servers/osControlServer.ts'),
+          'mcp/servers/whatsappServer': resolve('src/main/mcp/servers/whatsappServer.ts')
+        }
+      }
     }
   },
   preload: {

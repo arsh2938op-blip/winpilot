@@ -31,8 +31,7 @@ Share → Add to Home Screen.
 a minimal offline-capable service worker.
 
 **Placeholder:** every page's content (Dashboard stats, Winget actions,
-AI Assistant, Windows Controls, and the Gaming Mode/Combos/Plugins/
-Settings grouped under "More") — all static, no live data.
+AI Assistant, and the Combos/Plugins/Settings grouped under "More") — all static, no live data.
 
 ## What's needed before this is real
 

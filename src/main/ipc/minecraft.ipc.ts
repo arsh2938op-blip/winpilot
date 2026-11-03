@@ -39,11 +39,21 @@ export function registerMinecraftIpc(): void {
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : String(err) }
     }
-    return startMindCraft(config.projectPath, config)
+    return await startMindCraft(config.projectPath, config)
   })
 
   ipcMain.handle(IpcChannels.minecraft.stop, async () => stopMindCraft())
 
   ipcMain.handle(IpcChannels.minecraft.getStatus, async (): Promise<MinecraftStatus> => getMinecraftStatus())
+
+  ipcMain.handle(IpcChannels.minecraft.getBotState, async () => {
+    try {
+      const p = 'C:\\Users\\Dell\\Downloads\\winpilot-fixed\\winpilot\\.flame\\state\\minecraft_state.json'
+      if (require('fs').existsSync(p)) {
+        return JSON.parse(require('fs').readFileSync(p, 'utf8'))
+      }
+    } catch {}
+    return null
+  })
 }
 

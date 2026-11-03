@@ -1,11 +1,11 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, Search, Plus, Trash2 } from 'lucide-react'
 import { navItems } from '@renderer/routes'
 import { useNavStore } from '@renderer/store/useNavStore'
 import { cn } from '@renderer/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
-import { FlameIcon } from '@renderer/components/shared/FlameIcon'
+import { FlameIcon } from '@renderer/components/icons/FlameIcon'
 import { loadChats, deleteChat, requestOpenChat, type StoredChat } from '@renderer/lib/chatHistory'
 
 export function Sidebar(): React.JSX.Element {

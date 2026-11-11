@@ -36,7 +36,7 @@ export function TitleBar(): React.JSX.Element {
   useEffect(() => {
     if (!hasApi) {
       console.warn(
-        '[WinPilot] window.api is not available. If you are viewing this in a ' +
+        '[FlameAGI] window.api is not available. If you are viewing this in a ' +
           'regular browser tab, open the actual Electron app window instead. ' +
           'Otherwise, check the terminal running `npm run dev` for preload errors.'
       )

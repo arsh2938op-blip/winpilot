@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { emitAgentActivity } from '../../utils/broadcast'
+import { getBundledSearchDirs } from '../../utils/flamePaths'
 
 /**
  * Bridge to the FlameAGI Coder Engine (coder_engine.py v1.2.1) — the guarded
@@ -106,6 +107,8 @@ export async function findCoderEngine(projectPath?: string): Promise<string> {
   }
   const candidates = [
     ...(projectPath ? walkUp(projectPath) : []),
+    ...getBundledSearchDirs().map((d) => path.join(d, 'coder_engine.py')),
+    ...getBundledSearchDirs().map((d) => path.join(d, 'coder_engine.py')),
     ...walkUp(app.getAppPath())
   ]
   for (const candidate of candidates) {

@@ -71,9 +71,9 @@ export function CommandPalette(): React.JSX.Element {
             }
           }}
         >
-          <Dialog.Title className="sr-only">WinPilot command palette</Dialog.Title>
+          <Dialog.Title className="sr-only">FlameAGI command palette</Dialog.Title>
           <Dialog.Description className="sr-only">
-            Search WinPilot pages, or eventually type a natural-language command.
+            Search FlameAGI pages, or eventually type a natural-language command.
           </Dialog.Description>
 
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">

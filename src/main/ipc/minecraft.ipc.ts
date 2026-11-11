@@ -1,4 +1,7 @@
 import { ipcMain, dialog } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs'
+import { getFlameDir } from '../utils/flamePaths'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { MinecraftConfig, MinecraftStatus } from '@shared/types'
 import {
@@ -48,9 +51,9 @@ export function registerMinecraftIpc(): void {
 
   ipcMain.handle(IpcChannels.minecraft.getBotState, async () => {
     try {
-      const p = 'C:\\Users\\Dell\\Downloads\\winpilot-fixed\\winpilot\\.flame\\state\\minecraft_state.json'
-      if (require('fs').existsSync(p)) {
-        return JSON.parse(require('fs').readFileSync(p, 'utf8'))
+      const p = path.join(getFlameDir(), 'state', 'minecraft_state.json')
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, 'utf8'))
       }
     } catch {}
     return null

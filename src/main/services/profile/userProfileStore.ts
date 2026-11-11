@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
 import type { UserProfile } from '@shared/types'
+import { getFlameDir } from '../../utils/flamePaths'
 
 const DEFAULT_PROFILE: UserProfile = {
   nickname: 'Arsh',
@@ -10,13 +11,7 @@ const DEFAULT_PROFILE: UserProfile = {
 }
 
 function getProfilePath(): string {
-  const root = fsSync.existsSync(path.join(process.cwd(), '.flame'))
-    ? process.cwd()
-    : fsSync.existsSync(path.resolve(process.cwd(), '..', '.flame'))
-      ? path.resolve(process.cwd(), '..')
-      : process.cwd()
-
-  const stateDir = path.join(root, '.flame', 'state')
+  const stateDir = path.join(getFlameDir(), 'state')
   if (!fsSync.existsSync(stateDir)) {
     try {
       fsSync.mkdirSync(stateDir, { recursive: true })

@@ -49,14 +49,9 @@ export function registerWhatsAppCapabilities(): void {
           }
         }
 
-        const formatted = items.map((item, idx) => {
-          const detail = item.filePath ? `File: ${item.filePath}` : item.url ? `URL: ${item.url}` : ''
-          return `${idx + 1}. [${item.type.toUpperCase()}] From ${item.senderName} (${item.timestamp.slice(0, 16)}): ${item.caption || '(no caption)'} ${detail}`
-        }).join('\n')
-
         return {
           success: true,
-          message: `📁 **Archived WhatsApp Media (${items.length} item(s)):**\n\n${formatted}`
+          message: JSON.stringify(items, null, 2)
         }
       } catch (err) {
         return {
@@ -108,6 +103,40 @@ export function registerWhatsAppCapabilities(): void {
         return {
           success: false,
           message: `Failed to sync WhatsApp brain memory: ${err instanceof Error ? err.message : String(err)}`
+        }
+      }
+    }
+  })
+
+  registerCapability({
+    id: 'whatsapp.get_qr',
+    name: 'Get WhatsApp Pairing QR',
+    description: 'Returns WhatsApp Web pairing status and base64 QR code image from the active engine.',
+    pluginId: 'whatsapp',
+    run: async () => {
+      try {
+        let st = whatsappEngine.getConnectionStatus()
+        if (!st.connected && !st.qrDataUrl) {
+          void whatsappEngine.start().catch(() => {})
+          await new Promise((r) => setTimeout(r, 1500))
+          st = whatsappEngine.getConnectionStatus()
+        }
+        if (st.connected) {
+          return { success: true, message: '✅ WhatsApp is already connected and authenticated.' }
+        }
+        if (st.qrDataUrl) {
+          const base64Data = st.qrDataUrl.replace(/^data:image\/[a-zA-Z]+;base64,/, '')
+          return {
+            success: true,
+            message: 'Scan this QR code with WhatsApp on your phone (Linked Devices → Link a Device).',
+            data: { content: [{ type: 'image', data: base64Data, mimeType: 'image/png' }] }
+          }
+        }
+        return { success: true, message: 'WhatsApp engine is initializing. Open Plugins → WhatsApp AI Companion to view the live QR code once ready.' }
+      } catch (err) {
+        return {
+          success: false,
+          message: `Failed to get WhatsApp QR status: ${err instanceof Error ? err.message : String(err)}`
         }
       }
     }

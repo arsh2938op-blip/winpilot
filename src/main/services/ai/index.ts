@@ -58,7 +58,7 @@ export function interruptActiveTasks(): void {
 
 export async function handlePrompt(
   prompt: string,
-  model: ChatModelId = 'gemma',
+  model: ChatModelId = 'flame',
   requestId?: string,
   effortOverride?: EffortLevel | 'auto',
   mode: ChatMode = 'chat'
@@ -93,7 +93,7 @@ export async function handlePrompt(
 
 async function executePrompt(
   prompt: string,
-  model: ChatModelId = 'gemma',
+  model: ChatModelId = 'flame',
   requestId?: string,
   effortOverride?: EffortLevel | 'auto',
   signal?: AbortSignal,

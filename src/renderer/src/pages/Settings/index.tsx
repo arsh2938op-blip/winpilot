@@ -64,9 +64,24 @@ export default function Settings(): React.JSX.Element {
   const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null)
 
   // Engine & Models state (from Chat configuration)
-  const [voiceProvider, setVoiceProvider] = useState<'browser' | 'google'>('browser')
-  const [language, setLanguage] = useState('en-US')
-  const [googleVoiceName, setGoogleVoiceName] = useState('Aoede')
+  const [voiceProvider, setVoiceProviderState] = useState<'browser' | 'google'>(() =>
+    localStorage.getItem('flame:voice-provider') === 'google' ? 'google' : 'browser'
+  )
+  const [language, setLanguageState] = useState(() => localStorage.getItem('flame:voice-language') || 'en-US')
+  const [googleVoiceName, setGoogleVoiceNameState] = useState(() => localStorage.getItem('flame:voice-name') || 'Aoede')
+
+  const setVoiceProvider = (p: 'browser' | 'google'): void => {
+    setVoiceProviderState(p)
+    localStorage.setItem('flame:voice-provider', p)
+  }
+  const setLanguage = (lang: string): void => {
+    setLanguageState(lang)
+    localStorage.setItem('flame:voice-language', lang)
+  }
+  const setGoogleVoiceName = (name: string): void => {
+    setGoogleVoiceNameState(name)
+    localStorage.setItem('flame:voice-name', name)
+  }
   const [hasGoogleKey, setHasGoogleKey] = useState(false)
   const [googleKeyInput, setGoogleKeyInput] = useState('')
   const [savingKey, setSavingKey] = useState(false)
@@ -389,7 +404,7 @@ export default function Settings(): React.JSX.Element {
         <Card>
           <CardHeader>
             <CardTitle>Appearance</CardTitle>
-            <CardDescription>Choose how WinPilot looks.</CardDescription>
+            <CardDescription>Choose how FlameAGI looks.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3">
@@ -888,7 +903,7 @@ export default function Settings(): React.JSX.Element {
               <div className="flex items-center gap-3">
                 <Cpu className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">Ollama (gemma2:2b)</p>
+                  <p className="text-sm font-medium">Ollama ({localModel || 'Flame Local'})</p>
                   <p className="text-xs text-muted-foreground">Local — Flame&apos;s main brain for chat and intent parsing.</p>
                 </div>
               </div>

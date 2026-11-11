@@ -9,11 +9,25 @@ import { Boom } from '@hapi/boom'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import QRCode from 'qrcode'
-import { BrowserWindow } from 'electron'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
 import { getGoogleApiKey } from '../ai/googleKeyStore'
+import { getFlameDir } from '../../utils/flamePaths'
+
+function getElectronBrowserWindow(): { getAllWindows: () => Array<{ isDestroyed: () => boolean; webContents: { send: (ch: string, payload: unknown) => void } }> } | null {
+  if (process.env.ELECTRON_RUN_AS_NODE) return null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require('electron')
+    if (electron && typeof electron === 'object' && electron.BrowserWindow) {
+      return electron.BrowserWindow
+    }
+  } catch {
+    // Running inside standalone Node/MCP subprocess
+  }
+  return null
+}
 
 type BaileysModule = typeof import('@whiskeysockets/baileys')
 let baileysModule: BaileysModule | null = null
@@ -137,6 +151,8 @@ export class FlameWhatsAppEngine {
 
   private broadcastStatus(): void {
     try {
+      const BrowserWindow = getElectronBrowserWindow()
+      if (!BrowserWindow) return
       const payload = this.getConnectionStatus()
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) {
@@ -149,15 +165,7 @@ export class FlameWhatsAppEngine {
   }
 
   constructor(workspaceRoot?: string) {
-    const root =
-      workspaceRoot ||
-      (fsSync.existsSync(path.join(process.cwd(), '.flame'))
-        ? process.cwd()
-        : fsSync.existsSync(path.resolve(process.cwd(), '..', '.flame'))
-          ? path.resolve(process.cwd(), '..')
-          : process.cwd())
-
-    this.baseDir = path.join(root, '.flame')
+    this.baseDir = workspaceRoot ? path.join(workspaceRoot, '.flame') : getFlameDir()
     this.authDir = path.join(this.baseDir, 'state', 'whatsapp_auth')
     this.stateFile = path.join(this.baseDir, 'state', 'whatsapp_memory.json')
     this.mediaDir = path.join(this.baseDir, 'whatsapp_media')
@@ -179,6 +187,10 @@ export class FlameWhatsAppEngine {
   // --------------------------------------------------------------------------
   // 1. Initialization & Persistence
   // --------------------------------------------------------------------------
+
+  public async initStorageOnly(): Promise<void> {
+    await this.ensureDirectories()
+  }
 
   private async ensureDirectories(): Promise<void> {
     const dirs = [

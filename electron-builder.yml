@@ -3,20 +3,37 @@ productName: FlameAGI
 directories:
   buildResources: resources
   output: release
+asar: false
 files:
   - out/**/*
   - package.json
-  # The window, tray and orb icons are loaded at runtime from
-  # `out/main/../../resources`, so they must be inside the packaged app.
-  # icon-reference.png is a design source file and is deliberately excluded.
+  # Window, tray and orb icons are loaded at runtime from resources/
   - resources/icon.png
-  - resources/icon-pet.png
+  - resources/icon.ico
+  - resources/icon.svg
+extraResources:
+  - from: chess_engine.py
+    to: chess_engine.py
+  - from: coder_engine.py
+    to: coder_engine.py
+  - from: .env.example
+    to: .env.example
+  - from: keys.example.json
+    to: keys.example.json
 win:
   target:
     - target: nsis
+      arch:
+        - x64
+    - target: portable
       arch:
         - x64
   icon: resources/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: FlameAGI-Setup-${version}.${ext}
+portable:
+  artifactName: FlameAGI-Portable-${version}.${ext}

@@ -4,8 +4,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
-import { registerCapability } from '../flameCore/capabilities'
+import { registerCapability, getCapability } from '../flameCore/capabilities'
 import { emitAgentActivity } from '../utils/broadcast'
+import { getFlameDir, getUserDataDir, isAppPackaged, getBundledSearchDirs } from '../utils/flamePaths'
 
 export interface McpServerConfig {
   command: string
@@ -26,18 +27,39 @@ interface ConnectedServer {
 }
 
 export class McpHostManager {
-  private configPath: string
-  private workspaceRoot: string
+  private explicitRoot?: string
   private servers: Map<string, ConnectedServer> = new Map()
 
-  constructor(workspaceRoot = process.cwd()) {
-    const cwd = workspaceRoot
-    this.workspaceRoot = fsSync.existsSync(path.join(cwd, '.flame'))
-      ? cwd
-      : fsSync.existsSync(path.join(cwd, 'winpilot', '.flame'))
-        ? path.join(cwd, 'winpilot')
-        : cwd
-    this.configPath = path.join(this.workspaceRoot, '.flame', 'mcp_servers.json')
+  constructor(workspaceRoot?: string) {
+    this.explicitRoot = workspaceRoot
+  }
+
+  private getFlameRoot(): string {
+    if (this.explicitRoot) {
+      return fsSync.existsSync(path.join(this.explicitRoot, '.flame'))
+        ? path.join(this.explicitRoot, '.flame')
+        : path.join(this.explicitRoot, 'winpilot', '.flame')
+    }
+    return getFlameDir()
+  }
+
+  private getConfigPath(): string {
+    return path.join(this.getFlameRoot(), 'mcp_servers.json')
+  }
+
+  private resolveCompiledMcpServer(serverFileBase: string): string | null {
+    const relJs = path.join('out', 'main', 'mcp', 'servers', `${serverFileBase}.js`)
+    const candidates = [
+      path.join(__dirname, 'mcp', 'servers', `${serverFileBase}.js`),
+      path.join(path.resolve(__dirname, '..'), 'mcp', 'servers', `${serverFileBase}.js`),
+      ...getBundledSearchDirs().map((dir) => path.join(dir, relJs))
+    ]
+    for (const candidate of candidates) {
+      if (fsSync.existsSync(candidate)) {
+        return candidate
+      }
+    }
+    return null
   }
 
   public async initializeAllServers(): Promise<void> {
@@ -61,17 +83,45 @@ export class McpHostManager {
     for (const [k, v] of Object.entries(process.env)) {
       if (typeof v === 'string') mergedEnv[k] = v
     }
+    mergedEnv.FLAME_DATA_DIR = this.getFlameRoot()
+    mergedEnv.FLAME_USER_DATA = getUserDataDir()
     if (cfg.env) {
       Object.assign(mergedEnv, cfg.env)
     }
 
-    const command = process.platform === 'win32' && cfg.command === 'npx' ? 'npx.cmd' : cfg.command
-    const resolvedArgs = cfg.args.map((arg) => {
-      if (arg.startsWith('src/main/mcp/servers/') || arg.startsWith('out/main/mcp/servers/')) {
-        return path.resolve(this.workspaceRoot, arg)
+    let command = process.platform === 'win32' && cfg.command === 'npx' ? 'npx.cmd' : cfg.command
+    let resolvedArgs = [...cfg.args]
+
+    // Detect built-in Flame MCP servers and execute compiled JS via bundled Electron Node runtime in packaged builds
+    const builtInMatch = cfg.args
+      .map((a) => a.replace(/\\/g, '/').match(/(?:src|out)\/main\/mcp\/servers\/([a-zA-Z0-9_-]+)\.(?:ts|js)$/))
+      .find(Boolean)
+
+    if (builtInMatch) {
+      const serverBase = builtInMatch[1]
+      const compiledJs = this.resolveCompiledMcpServer(serverBase)
+      const devTs = path.resolve(process.cwd(), 'src', 'main', 'mcp', 'servers', `${serverBase}.ts`)
+
+      if (compiledJs && (isAppPackaged() || !fsSync.existsSync(devTs))) {
+        command = process.execPath
+        resolvedArgs = [compiledJs]
+        mergedEnv.ELECTRON_RUN_AS_NODE = '1'
+      } else {
+        resolvedArgs = cfg.args.map((arg) => {
+          if (arg.startsWith('src/main/mcp/servers/') || arg.startsWith('out/main/mcp/servers/')) {
+            return path.resolve(path.dirname(this.getFlameRoot()), arg)
+          }
+          return arg
+        })
       }
-      return arg
-    })
+    } else {
+      resolvedArgs = cfg.args.map((arg) => {
+        if (arg.startsWith('src/main/mcp/servers/') || arg.startsWith('out/main/mcp/servers/')) {
+          return path.resolve(path.dirname(this.getFlameRoot()), arg)
+        }
+        return arg
+      })
+    }
 
     const transport = new StdioClientTransport({
       command,
@@ -104,7 +154,18 @@ export class McpHostManager {
         }
       }
 
+      const existingNativeCap = tool.name.startsWith('whatsapp.') ? getCapability(tool.name) : undefined
+
       const runFn = async (args: Record<string, unknown>) => {
+        if (existingNativeCap) {
+          const requestId = args.requestId as string | undefined
+          const startTime = Date.now()
+          emitAgentActivity(requestId, `[MCP:${tool.name}] Running tool...`)
+          const res = await existingNativeCap.run(args)
+          emitAgentActivity(requestId, `[MCP:${tool.name}] Completed in ${Date.now() - startTime}ms`)
+          return res
+        }
+
         const active = this.servers.get(name)
         if (!active) {
           return { success: false, message: `MCP server "${name}" is currently offline.` }
@@ -145,6 +206,7 @@ export class McpHostManager {
         id: tool.name,
         name: tool.name,
         description: `[MCP:${name}] ${tool.description || tool.name}`,
+        pluginId: existingNativeCap?.pluginId,
         parameters: mappedParams,
         run: runFn,
         execute: runFn
@@ -205,16 +267,18 @@ export class McpHostManager {
     this.servers.clear()
   }
 
-  public async getStatusSummary(): Promise<Array<{ id: string; name: string; online: boolean; tools: string[]; toolCount: number }>> {
+  public async getStatusSummary(): Promise<Array<{ id: string; name: string; online: boolean; running: boolean; tools: string[]; toolCount: number }>> {
     const configMap = await this.loadConfig()
     return Object.entries(configMap).map(([serverName]) => {
       const active = this.servers.get(serverName)
       const cleanName = serverName.replace(/^flame-/, '')
       const displayName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+      const isOnline = Boolean(active)
       return {
         id: serverName,
         name: displayName,
-        online: Boolean(active),
+        online: isOnline,
+        running: isOnline,
         tools: active ? active.tools : [],
         toolCount: active ? active.tools.length : 0
       }
@@ -224,7 +288,7 @@ export class McpHostManager {
   private async loadConfig(): Promise<Record<string, McpServerConfig>> {
     await this.ensureDefaultConfig()
     try {
-      const raw = await fs.readFile(this.configPath, 'utf-8')
+      const raw = await fs.readFile(this.getConfigPath(), 'utf-8')
       const parsed = JSON.parse(raw)
       if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
         return parsed.mcpServers
@@ -248,8 +312,9 @@ export class McpHostManager {
   }
 
   private async ensureDefaultConfig(): Promise<void> {
-    await fs.mkdir(path.dirname(this.configPath), { recursive: true })
-    if (!fsSync.existsSync(this.configPath)) {
+    const configPath = this.getConfigPath()
+    await fs.mkdir(path.dirname(configPath), { recursive: true })
+    if (!fsSync.existsSync(configPath)) {
       const defaultConfig: McpConfigFile = {
         mcpServers: {
           'flame-computer-use': {
@@ -279,7 +344,7 @@ export class McpHostManager {
           }
         }
       }
-      await fs.writeFile(this.configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8')
+      await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8')
     }
   }
 }

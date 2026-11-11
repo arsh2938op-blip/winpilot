@@ -1,38 +1,17 @@
-import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { withGoogleKeyRotation } from '../ai/googleKeyRotation'
 import { getAllGoogleApiKeys, getActiveGeminiModel } from '../ai/googleKeyStore'
 import type { ImageGenerationOptions, GeneratedImageResult } from '@shared/types'
+import { getFlameDir } from '../../utils/flamePaths'
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
 function getAssetsDir(): string {
-  try {
-    const cwd = process.cwd()
-    const flameDir = path.join(cwd, '.flame', 'assets')
-    if (fs.existsSync(flameDir)) return flameDir
-
-    const dotFlame = path.join(cwd, '.flame')
-    if (fs.existsSync(dotFlame)) {
-      const assetsDir = path.join(dotFlame, 'assets')
-      if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true })
-      return assetsDir
-    }
-
-    const rootFlame = path.resolve(cwd, '..', '.flame', 'assets')
-    if (fs.existsSync(rootFlame)) return rootFlame
-
-    const userData = app.getPath('userData')
-    const assetsDir = path.join(userData, 'assets')
-    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true })
-    return assetsDir
-  } catch {
-    const fallback = path.join(process.cwd(), '.flame', 'assets')
-    if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true })
-    return fallback
-  }
+  const assetsDir = path.join(getFlameDir(), 'assets')
+  if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true })
+  return assetsDir
 }
 
 /**

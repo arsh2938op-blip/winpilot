@@ -139,7 +139,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 })
 
 async function main(): Promise<void> {
-  await whatsappEngine.start()
+  // Load brain/media state without opening a duplicate Baileys WebSocket; main process owns live pairing.
+  await whatsappEngine.initStorageOnly()
   const transport = new StdioServerTransport()
   await server.connect(transport)
 }

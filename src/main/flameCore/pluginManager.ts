@@ -1,9 +1,10 @@
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { FlamePluginMeta, FlamePluginCategory } from '@shared/types'
 import { setPluginCapabilityState } from './capabilities'
+import { getFlameDir } from '../utils/flamePaths'
 
 export interface PluginDefinition {
   id: string
@@ -109,7 +110,8 @@ export const KNOWN_PLUGINS: PluginDefinition[] = [
     capabilities: [
       'whatsapp.send_message',
       'whatsapp.get_archived_media',
-      'whatsapp.sync_brain_memory'
+      'whatsapp.sync_brain_memory',
+      'whatsapp.get_qr'
     ],
     links: [{ label: 'WhatsApp in Chat', to: '/' }],
     defaultEnabled: true
@@ -175,7 +177,7 @@ export const KNOWN_PLUGINS: PluginDefinition[] = [
     name: 'Browser & Web Controller',
     description: 'Native MCP tool server for web navigation, Playwright browser automation, and Google Workspace integration.',
     category: 'tools',
-    capabilities: ['browser.open_url', 'browser.automate_page', 'browser.google_workspace'],
+    capabilities: ['browser.open_url', 'browser.search_and_open', 'browser.automate_page'],
     links: [{ label: 'Browse in Chat', to: '/' }],
     defaultEnabled: true
   },
@@ -202,33 +204,11 @@ export const KNOWN_PLUGINS: PluginDefinition[] = [
 let pluginStateMap: Record<string, boolean> | null = null
 
 function getPluginsStatePath(): string {
-  try {
-    const cwd = process.cwd()
-    const flameDir = path.join(cwd, '.flame', 'state')
-    if (fs.existsSync(flameDir)) {
-      return path.join(flameDir, 'plugins.json')
-    }
-    const dotFlame = path.join(cwd, '.flame')
-    if (fs.existsSync(dotFlame)) {
-      const stateDir = path.join(dotFlame, 'state')
-      if (!fs.existsSync(stateDir)) {
-        fs.mkdirSync(stateDir, { recursive: true })
-      }
-      return path.join(stateDir, 'plugins.json')
-    }
-    const rootFlame = path.resolve(cwd, '..', '.flame', 'state')
-    if (fs.existsSync(rootFlame)) {
-      return path.join(rootFlame, 'plugins.json')
-    }
-    const userData = app.getPath('userData')
-    const stateDir = path.join(userData, 'state')
-    if (!fs.existsSync(stateDir)) {
-      fs.mkdirSync(stateDir, { recursive: true })
-    }
-    return path.join(stateDir, 'plugins.json')
-  } catch {
-    return path.join(process.cwd(), '.flame', 'state', 'plugins.json')
+  const stateDir = path.join(getFlameDir(), 'state')
+  if (!fs.existsSync(stateDir)) {
+    fs.mkdirSync(stateDir, { recursive: true })
   }
+  return path.join(stateDir, 'plugins.json')
 }
 
 function broadcastPluginState(plugins: FlamePluginMeta[]): void {

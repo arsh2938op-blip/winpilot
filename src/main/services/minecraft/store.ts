@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { promises as fs } from 'fs'
+import os from 'os'
 import path from 'path'
 import type { MinecraftConfig } from '@shared/types'
 
@@ -42,7 +43,8 @@ export async function getMinecraftConfig(): Promise<MinecraftConfig> {
   const cfg = { ...DEFAULT_CONFIG, ...((secrets.minecraft as Partial<MinecraftConfig>) || {}) }
   if (!cfg.projectPath) {
     const candidates = [
-      'C:\\Users\\Dell\\OneDrive\\Documents\\mindcraft-develop\\mindcraft-develop',
+      path.join(os.homedir(), 'OneDrive', 'Documents', 'mindcraft-develop', 'mindcraft-develop'),
+      path.join(os.homedir(), 'Documents', 'mindcraft-develop', 'mindcraft-develop'),
       path.resolve(process.cwd(), '..', 'mindcraft-develop', 'mindcraft-develop'),
       path.resolve(process.cwd(), '..', 'mindcraft-develop')
     ]

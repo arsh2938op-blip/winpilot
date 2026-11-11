@@ -1,6 +1,6 @@
-import { app } from 'electron'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { getUserDataDir } from '../../utils/flamePaths'
 
 interface SecretsFile {
   googleApiKey?: string
@@ -14,13 +14,13 @@ interface SecretsFile {
 
 /**
  * Stores Google API keys in a local JSON file in the app's own user data
- * folder (e.g. %APPDATA%\winpilot on Windows) — outside the project folder,
+ * folder (e.g. %APPDATA%\FlameAGI on Windows) — outside the project folder,
  * so it's never at risk of ending up in a zip, a git commit, or anywhere
  * you'd share. Note: this file is plain text, not encrypted — fine for a
  * single-user local machine, but don't copy it anywhere shared.
  */
 function secretsPath(): string {
-  return path.join(app.getPath('userData'), 'secrets.json')
+  return path.join(getUserDataDir(), 'secrets.json')
 }
 
 async function readSecrets(): Promise<SecretsFile> {

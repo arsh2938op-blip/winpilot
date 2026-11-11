@@ -15,7 +15,10 @@ function resolveSmartPath(rawPath: string): string {
   if (lower === 'downloads') return path.join(home, 'Downloads')
   if (lower === 'documents') return path.join(home, 'Documents')
   if (lower === 'temp' || lower === '%temp%') return os.tmpdir()
-  if (lower === 'workspace' || lower === '.') return process.cwd()
+  if (lower === 'workspace' || lower === '.') {
+    const cwd = process.cwd()
+    return /\\windows\\system32|\\program files/i.test(cwd) ? home : cwd
+  }
 
   return path.resolve(trimmed.replace(/^~(?=$|\/|\\)/, home))
 }

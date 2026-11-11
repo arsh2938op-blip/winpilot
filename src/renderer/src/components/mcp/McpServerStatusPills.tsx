@@ -45,26 +45,38 @@ function getIcon(nameOrId: string): React.ComponentType<{ className?: string }> 
   return Server
 }
 
+function normalizeServers(list: unknown[]): McpServerInfo[] {
+  return list.map((raw) => {
+    const item = raw as Partial<McpServerInfo> & { running?: boolean }
+    return {
+      id: item.id || '',
+      name: item.name || item.id || '',
+      online: Boolean(item.online ?? item.running),
+      tools: Array.isArray(item.tools) ? item.tools : [],
+      toolCount: typeof item.toolCount === 'number' ? item.toolCount : (Array.isArray(item.tools) ? item.tools.length : 0)
+    }
+  })
+}
+
 export function McpServerStatusPills(): React.JSX.Element {
   const [servers, setServers] = useState<McpServerInfo[]>([
-    { id: 'flame-computer-use', name: 'Computer Use', online: true, tools: ['computer.capture_screen', 'computer.pointer_action', 'computer.keyboard_input', 'computer.window_control'], toolCount: 4 },
-    { id: 'flame-browser', name: 'Browser', online: true, tools: ['browser.open_url', 'browser.search_and_open', 'browser.automate_page'], toolCount: 3 },
-    { id: 'flame-filesystem', name: 'Files', online: true, tools: ['fs.explore_directory', 'fs.search_files', 'fs.read_write_edit', 'fs.clean_temp'], toolCount: 4 },
-    { id: 'flame-os', name: 'OS', online: true, tools: ['os.run_powershell', 'os.manage_processes', 'os.clipboard'], toolCount: 3 },
-    { id: 'flame-whatsapp', name: 'WhatsApp', online: true, tools: ['whatsapp.send_message', 'whatsapp.get_archived_media', 'whatsapp.sync_brain_memory'], toolCount: 3 }
+    { id: 'flame-computer-use', name: 'Computer Use', online: false, tools: ['computer.capture_screen', 'computer.pointer_action', 'computer.keyboard_input', 'computer.window_control'], toolCount: 4 },
+    { id: 'flame-browser', name: 'Browser', online: false, tools: ['browser.open_url', 'browser.search_and_open', 'browser.automate_page'], toolCount: 3 },
+    { id: 'flame-filesystem', name: 'Files', online: false, tools: ['fs.explore_directory', 'fs.search_files', 'fs.read_write_edit', 'fs.clean_temp'], toolCount: 4 },
+    { id: 'flame-os', name: 'OS', online: false, tools: ['os.run_powershell', 'os.manage_processes', 'os.clipboard'], toolCount: 3 },
+    { id: 'flame-whatsapp', name: 'WhatsApp', online: false, tools: ['whatsapp.send_message', 'whatsapp.get_archived_media', 'whatsapp.sync_brain_memory', 'whatsapp.get_qr'], toolCount: 4 }
   ])
   const [reconnectingId, setReconnectingId] = useState<string | null>(null)
   const [hoveredServer, setHoveredServer] = useState<string | null>(null)
 
   const fetchStatus = async (): Promise<void> => {
     try {
-      const electron = (window as unknown as { electron?: { ipcRenderer: { invoke: (ch: string, ...args: unknown[]) => Promise<McpServerInfo[]> } } })?.electron
-      const result = await electron?.ipcRenderer?.invoke('mcp:get-status')
+      const result = await window.api?.mcp?.getStatus?.()
       if (Array.isArray(result) && result.length > 0) {
-        setServers(result)
+        setServers(normalizeServers(result))
       }
     } catch {
-      // Keep optimistic defaults
+      // Keep current pills state if IPC call fails
     }
   }
 
@@ -80,10 +92,9 @@ export function McpServerStatusPills(): React.JSX.Element {
     e.stopPropagation()
     setReconnectingId(server.id)
     try {
-      const electron = (window as unknown as { electron?: { ipcRenderer: { invoke: (ch: string, ...args: unknown[]) => Promise<McpServerInfo[]> } } })?.electron
-      const result = await electron?.ipcRenderer?.invoke('mcp:reconnect-server', server.id)
+      const result = await window.api?.mcp?.reloadServer?.(server.id)
       if (Array.isArray(result)) {
-        setServers(result)
+        setServers(normalizeServers(result))
       } else {
         await fetchStatus()
       }

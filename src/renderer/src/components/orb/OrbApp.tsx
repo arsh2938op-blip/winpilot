@@ -34,7 +34,7 @@ const CHAT_KEY = 'flame-agi:orb-active-chat'
 const LANGUAGE = 'en-US'
 
 const MODELS: { id: ChatModelId; label: string }[] = [
-  { id: 'gemma', label: 'Gemma (local)' },
+  { id: 'flame', label: 'Flame (local)' },
   { id: 'gemini', label: 'Gemini' }
 ]
 
@@ -95,7 +95,7 @@ export function OrbApp(): React.JSX.Element {
   }, [nudge])
 
   const [model, setModel] = useState<ChatModelId>(() =>
-    localStorage.getItem(MODEL_KEY) === 'gemini' ? 'gemini' : 'gemma'
+    localStorage.getItem(MODEL_KEY) === 'gemini' ? 'gemini' : 'flame'
   )
   const [ttsEnabled, setTtsEnabled] = useState(() => localStorage.getItem(TTS_KEY) === 'true')
 
@@ -119,7 +119,11 @@ export function OrbApp(): React.JSX.Element {
   const modelMenuRef = useRef<HTMLDivElement>(null)
   const listenerRef = useRef<LocalListener | null>(null)
 
-  const voiceProvider = hasGoogleKey ? 'google' : 'browser'
+  // Zero-cost Chromium Web Speech by default; only use Google Cloud Speech if explicitly saved in Settings
+  const savedVoiceProvider = localStorage.getItem('flame:voice-provider')
+  const voiceProvider = savedVoiceProvider === 'google' && hasGoogleKey ? 'google' : 'browser'
+  const orbLang = localStorage.getItem('flame:voice-language') || LANGUAGE
+  const orbVoiceName = localStorage.getItem('flame:voice-name') || 'Aoede'
   const {
     supported: voiceSupported,
     listening,
@@ -127,7 +131,7 @@ export function OrbApp(): React.JSX.Element {
     stopSpeaking,
     startListening,
     stopListening
-  } = useVoice({ provider: voiceProvider, googleVoiceName: 'Aoede', languageCode: LANGUAGE })
+  } = useVoice({ provider: voiceProvider, googleVoiceName: orbVoiceName, languageCode: orbLang })
 
   // Latest-value refs so the (stable) send callback registered with the
   // always-listening listener never reads stale state.
@@ -246,10 +250,10 @@ export function OrbApp(): React.JSX.Element {
     }
   }, [])
 
-  // The orb shows the local model's status only when Gemma is selected;
+  // The orb shows the local model's status only when Flame (local) is selected;
   // Gemini is governed by whether a key is configured at all.
   useEffect(() => {
-    if (model !== 'gemma') return
+    if (model !== 'flame') return
     const api = window.api?.ai
     if (!api) return
     let cancelled = false
@@ -654,10 +658,10 @@ export function OrbApp(): React.JSX.Element {
               onClick={() => setModelOpen((v) => !v)}
               aria-haspopup="listbox"
               aria-expanded={modelOpen}
-              aria-label={`Model: ${model === 'gemini' ? 'Gemini' : 'Gemma'}`}
+              aria-label={`Model: ${model === 'gemini' ? 'Gemini' : 'Flame'}`}
               className="flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-white transition-colors hover:bg-white/10"
             >
-              {model === 'gemini' ? 'Gemini' : 'Gemma'}
+              {model === 'gemini' ? 'Gemini' : 'Flame'}
               <ChevronDown className="h-3 w-3" />
             </button>
             {modelOpen && (

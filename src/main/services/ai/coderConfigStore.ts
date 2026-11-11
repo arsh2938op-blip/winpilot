@@ -1,6 +1,6 @@
-import { app } from 'electron'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { getFlameDir, getBundledSearchDirs, isAppPackaged } from '../../utils/flamePaths'
 
 export interface CoderConfig {
   local_model?: string
@@ -35,18 +35,12 @@ async function fileExists(filePath: string): Promise<boolean> {
  * Locate .flame/coder_config.json in project root or parent directories.
  */
 export async function findCoderConfigFile(): Promise<string> {
-  const roots: string[] = []
-
-  if (process.cwd()) roots.push(process.cwd())
-  if (typeof app?.getAppPath === 'function') {
-    try {
-      roots.push(app.getAppPath())
-    } catch {
-      /* ignore */
-    }
+  const flameConfig = path.join(getFlameDir(), 'coder_config.json')
+  if (isAppPackaged() || (await fileExists(flameConfig))) {
+    return flameConfig
   }
-  roots.push(path.resolve(process.cwd(), '..'))
 
+  const roots = getBundledSearchDirs()
   for (const root of roots) {
     let curr = path.resolve(root)
     for (let i = 0; i < 5; i++) {
@@ -60,9 +54,7 @@ export async function findCoderConfigFile(): Promise<string> {
     }
   }
 
-  // Fallback to workspace root .flame/coder_config.json relative to winpilot
-  const fallback = path.resolve(process.cwd(), '..', '.flame', 'coder_config.json')
-  return fallback
+  return flameConfig
 }
 
 /**

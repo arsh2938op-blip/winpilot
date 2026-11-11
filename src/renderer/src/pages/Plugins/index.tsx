@@ -190,7 +190,7 @@ export default function Plugins(): React.JSX.Element {
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-1.5">
-          {(['all', 'system', 'analysis', 'ai', 'developer', 'tools'] as const).map((cat) => (
+          {(['all', 'system', 'analysis', 'ai', 'developer', 'communication', 'tools'] as const).map((cat) => (
             <button
               key={cat}
               type="button"

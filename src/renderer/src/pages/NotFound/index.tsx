@@ -9,7 +9,7 @@ export default function NotFound(): React.JSX.Element {
       <div>
         <h1 className="font-display text-xl font-semibold">Page not found</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          That page doesn&apos;t exist in WinPilot yet.
+          That page doesn&apos;t exist in FlameAGI yet.
         </p>
       </div>
       <Button asChild>

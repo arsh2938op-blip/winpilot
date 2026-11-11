@@ -1,35 +1,18 @@
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { DueMessage, DueMessageStatus, CreateDueMessageInput } from '@shared/types'
+import { getFlameDir } from '../../utils/flamePaths'
 
 let memoryCache: DueMessage[] | null = null
 
 function getStorePath(): string {
-  try {
-    const cwd = process.cwd()
-    const flameDir = path.join(cwd, '.flame', 'state')
-    if (fs.existsSync(flameDir)) {
-      return path.join(flameDir, 'due_messages.json')
-    }
-    const dotFlame = path.join(cwd, '.flame')
-    if (fs.existsSync(dotFlame)) {
-      const stateDir = path.join(dotFlame, 'state')
-      if (!fs.existsSync(stateDir)) {
-        fs.mkdirSync(stateDir, { recursive: true })
-      }
-      return path.join(stateDir, 'due_messages.json')
-    }
-    const userData = app.getPath('userData')
-    const stateDir = path.join(userData, 'state')
-    if (!fs.existsSync(stateDir)) {
-      fs.mkdirSync(stateDir, { recursive: true })
-    }
-    return path.join(stateDir, 'due_messages.json')
-  } catch {
-    return path.join(process.cwd(), '.flame', 'state', 'due_messages.json')
+  const stateDir = path.join(getFlameDir(), 'state')
+  if (!fs.existsSync(stateDir)) {
+    fs.mkdirSync(stateDir, { recursive: true })
   }
+  return path.join(stateDir, 'due_messages.json')
 }
 
 function broadcastUpdate(messages: DueMessage[]): void {

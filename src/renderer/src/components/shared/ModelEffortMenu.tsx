@@ -4,7 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import type { ChatModelId } from '@shared/types'
 
 const MODELS: { id: ChatModelId; label: string }[] = [
-  { id: 'gemma', label: 'Gemma' },
+  { id: 'flame', label: 'Flame' },
   { id: 'gemini', label: 'Gemini' }
 ]
 

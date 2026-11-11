@@ -3,6 +3,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { getGoogleApiKey } from '../ai/googleKeyStore'
+import { getFlameDir, getBundledSearchDirs } from '../../utils/flamePaths'
 import type {
   ChessArenaState,
   ChessGameMode,
@@ -42,6 +43,7 @@ export async function findChessEngine(): Promise<string> {
   if (cachedEnginePath && (await exists(cachedEnginePath))) return cachedEnginePath
 
   const candidates = [
+    ...getBundledSearchDirs().map((d) => path.join(d, 'chess_engine.py')),
     path.join(process.cwd(), 'chess_engine.py'),
     path.join(process.cwd(), '..', 'chess_engine.py'),
     path.join(app.getAppPath(), 'chess_engine.py'),
@@ -336,7 +338,7 @@ function playersFilePath(): string {
   try {
     return path.join(app.getPath('userData'), 'chess_players.json')
   } catch {
-    return path.join(process.cwd(), '.flame', 'chess_players.json')
+    return path.join(getFlameDir(), 'chess_players.json')
   }
 }
 

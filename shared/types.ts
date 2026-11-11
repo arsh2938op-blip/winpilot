@@ -376,7 +376,7 @@ export interface GeminiModelInfo {
   displayName?: string
 }
 
-export type ChatModelId = 'gemma' | 'gemini'
+export type ChatModelId = 'flame' | 'gemini'
 export type FlameDifficulty = 'easy' | 'normal' | 'hard' | 'expert'
 
 export interface WhatsAppContact {
@@ -732,6 +732,7 @@ export interface McpServerStatus {
   id: string
   name: string
   running: boolean
+  online?: boolean
   toolCount: number
   tools: string[]
   error?: string

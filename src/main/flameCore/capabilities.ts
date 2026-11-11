@@ -42,9 +42,21 @@ function inferPluginId(capabilityId: string): string {
     case 'due':
       return 'dueMessages'
     case 'windows':
+    case 'winget':
       return 'windows'
     case 'files':
       return 'files'
+    case 'fs':
+      return 'filesystem'
+    case 'os':
+    case 'communication':
+      return 'osControl'
+    case 'computer':
+      return 'computer'
+    case 'browser':
+      return 'browser'
+    case 'whatsapp':
+      return 'whatsapp'
     case 'coder':
       return 'coder'
     case 'zapier':

@@ -1,8 +1,8 @@
-import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { Combo } from '@shared/types'
 import { parseMacroSteps } from './parser'
+import { getFlameDir } from '../../utils/flamePaths'
 
 const DEFAULT_COMBOS: Combo[] = [
   {
@@ -28,17 +28,7 @@ const DEFAULT_COMBOS: Combo[] = [
 let combosCache: Combo[] | null = null
 
 function getStorePath(): string {
-  try {
-    const cwd = process.cwd()
-    const flameDir = path.join(cwd, '.flame')
-    if (fs.existsSync(flameDir)) {
-      return path.join(flameDir, 'combos.json')
-    }
-    const userData = app.getPath('userData')
-    return path.join(userData, 'combos.json')
-  } catch {
-    return path.join(process.cwd(), '.flame', 'combos.json')
-  }
+  return path.join(getFlameDir(), 'combos.json')
 }
 
 export async function loadCombos(): Promise<Combo[]> {

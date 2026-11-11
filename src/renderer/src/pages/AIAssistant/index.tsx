@@ -397,13 +397,13 @@ export default function AIAssistant(): React.JSX.Element {
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [activeLocalModel, setActiveLocalModel] = useState<string>('qwen2.5-coder:1.5b')
-  const [chatModel, setChatModel] = useState<ChatModelId>('gemma')
+  const [chatModel, setChatModel] = useState<ChatModelId>('flame')
   const [effort, setEffort] = useState<EffortChoice>('auto')
   const [attachment, setAttachment] = useState<Attachment | null>(null)
 
   const [voiceReplies, setVoiceReplies] = useState(false)
-  const [language, setLanguage] = useState('en-US')
-  const [googleVoiceName, setGoogleVoiceName] = useState('Aoede')
+  const [language] = useState(() => localStorage.getItem('flame:voice-language') || 'en-US')
+  const [googleVoiceName] = useState(() => localStorage.getItem('flame:voice-name') || 'Aoede')
 
   const [hwSnapshot, setHwSnapshot] = useState<SystemSnapshot | null>(null)
   const [memories, setMemories] = useState<MemoryEntry[]>([])
@@ -628,19 +628,25 @@ export default function AIAssistant(): React.JSX.Element {
     return () => unsub()
   }, [])
 
+  const sttActionsRef = useRef({ startListening: stt.startListening, stopListening: stt.stopListening })
+  sttActionsRef.current = { startListening: stt.startListening, stopListening: stt.stopListening }
+  const prevGameAgentActiveRef = useRef(false)
+
   useEffect(() => {
-    if (gameAgentActive) {
+    const wasActive = prevGameAgentActiveRef.current
+    prevGameAgentActiveRef.current = gameAgentActive
+    if (gameAgentActive && !wasActive) {
       window.api?.minecraft?.getStatus?.().then((st) => {
         if (st?.state === 'offline') {
           window.api?.minecraft?.start?.().catch(() => {})
         }
       }).catch(() => {})
 
-      stt.startListening()
-    } else {
-      stt.stopListening()
+      sttActionsRef.current.startListening()
+    } else if (!gameAgentActive && wasActive) {
+      sttActionsRef.current.stopListening()
     }
-  }, [gameAgentActive, stt])
+  }, [gameAgentActive])
 
   const startNewChat = (): void => {
     if (messages.length > 0) persist(messages)
@@ -1162,7 +1168,7 @@ export default function AIAssistant(): React.JSX.Element {
             <ModeSwitcher compact />
 
             <span className="text-muted-foreground hidden xl:inline">
-              · {chatModel === 'gemini' ? 'Gemini 2.5' : (status?.activeModel || 'Gemma 2B')}
+              · {chatModel === 'gemini' ? 'Gemini 2.5' : (status?.activeModel || 'Flame Local')}
             </span>
           </div>
 

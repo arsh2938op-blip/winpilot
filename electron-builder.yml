@@ -11,6 +11,10 @@ files:
   - resources/icon.png
   - resources/icon.ico
   - resources/icon.svg
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/**/examples/**"
+  - "!**/node_modules/**/*.{map,d.ts,d.ts.map,tsbuildinfo}"
 extraResources:
   - from: chess_engine.py
     to: chess_engine.py
@@ -21,6 +25,7 @@ extraResources:
   - from: keys.example.json
     to: keys.example.json
 win:
+  signAndEditExecutable: false
   target:
     - target: nsis
       arch:
